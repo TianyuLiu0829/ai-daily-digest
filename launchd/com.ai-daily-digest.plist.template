@@ -8,15 +8,15 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/sh</string>
-    <string>/Users/liutianyu/Documents/Ai新闻推送/scripts/run-daily.sh</string>
+    <string>/Users/liutianyu/Library/Application Support/AI Daily Digest/scripts/run-daily.sh</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
   <key>StartInterval</key>
   <integer>3600</integer>
   <key>StandardOutPath</key>
-  <string>/Users/liutianyu/Documents/Ai新闻推送/digest.log</string>
+  <string>/Users/liutianyu/Library/Application Support/AI Daily Digest/digest.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/liutianyu/Documents/Ai新闻推送/digest.err.log</string>
+  <string>/Users/liutianyu/Library/Application Support/AI Daily Digest/digest.err.log</string>
 </dict>
 </plist>

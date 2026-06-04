@@ -3,3 +3,5 @@
 .digest-last-output.json
 node_modules/
 .DS_Store
+digest.log
+digest.err.log
