@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 日报 — 2026年6月3日</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f5f4f0;--surface:#fff;--surface2:#f9f8f5;--border:rgba(0,0,0,.09);--border-h:rgba(0,0,0,.2);--text:#181614;--text2:#3d3a36;--text3:#888480;--purple:#4f3fcf;--purple-bg:rgba(79,63,207,.07);--green:#1a7a4e;--green-bg:rgba(26,122,78,.07);--amber:#92580a;--amber-bg:rgba(146,88,10,.08);--red:#b02020;--red-bg:rgba(176,32,32,.07);--insight-bg:#f0ede6;--insight-bdr:#ddd8ce;--selected-bg:#fffbeb;--selected-bdr:#d4a017;--font:'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif;--mono:'Space Mono','Courier New',monospace;}
+*,*:before,*:after{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:16px;line-height:1.75;-webkit-font-smoothing:antialiased}.page{max-width:820px;margin:0 auto;padding:0 1.75rem 8rem}.masthead{padding:3rem 0 2rem;border-bottom:1.5px solid var(--border);margin-bottom:1.25rem;position:relative;overflow:hidden}.masthead:after{content:'AI';position:absolute;right:-1rem;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:190px;font-weight:700;color:rgba(79,63,207,.04);line-height:1}.masthead-tag{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:.5rem}.masthead-title{font-size:clamp(34px,6vw,52px);font-weight:700;line-height:1.05;margin-bottom:.35rem}.masthead-title span{color:var(--purple)}.masthead-sub{font-size:13px;color:var(--text3);margin-bottom:.9rem}.masthead-sources{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}.masthead-date,.source-pill{font-family:var(--mono);font-size:10px;color:var(--text3)}.source-pill{padding:3px 9px;border-radius:20px;border:1px solid var(--border);text-decoration:none}.status-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:0 0 2rem;padding:1rem 1.1rem}.status-head{display:flex;justify-content:space-between;gap:1rem;align-items:center;border-bottom:1px solid var(--border);padding-bottom:.75rem;margin-bottom:.75rem}.status-title{font-size:14px;font-weight:700}.status-badge{font-family:var(--mono);font-size:10px;border-radius:20px;padding:4px 10px;background:var(--purple-bg);color:var(--purple)}.status-badge.fetch_failed,.status-badge.parse_failed{background:var(--red-bg);color:var(--red)}.status-badge.no_today{background:var(--amber-bg);color:var(--amber)}.source-row{display:grid;grid-template-columns:1fr auto;gap:.35rem 1rem;font-size:12px;padding:.45rem 0;border-bottom:1px solid rgba(0,0,0,.05)}.source-row:last-child{border-bottom:0}.source-row small{grid-column:1/-1;color:var(--text3)}.source-row.ok span{color:var(--green)}.source-row.warn span{color:var(--amber)}.source-row.core-fail{background:var(--red-bg);margin:.25rem -.5rem;padding:.5rem;border-radius:8px}.source-row.core-fail span{color:var(--red);font-weight:700}.core-tag{font-family:var(--mono);font-size:9px;margin-left:.45rem;color:var(--red)}.stat-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:2.5rem}.stat-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.9rem 1.1rem}.stat-num{font-family:var(--mono);font-size:22px;font-weight:700;line-height:1;margin-bottom:4px}.stat-label{font-size:12px;color:var(--text3)}.section-header{display:flex;align-items:center;gap:10px;margin:2.25rem 0 1.1rem}.section-icon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;background:var(--purple-bg)}.section-title{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text3)}.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:.9rem;overflow:hidden;transition:border-color .2s,box-shadow .2s;position:relative}.card:hover{border-color:var(--border-h);box-shadow:0 2px 14px rgba(0,0,0,.07)}.card.featured{border-left:3px solid var(--purple)}.card.selected{background:var(--selected-bg);border-color:var(--selected-bdr)}.card-check{position:absolute;top:1rem;right:1rem;z-index:2}.card-check input{width:18px;height:18px;accent-color:var(--purple);cursor:pointer}.card-link-area{display:block;text-decoration:none;color:inherit;padding:1.2rem 3rem 0 1.4rem;transition:background .15s}.card-link-area:hover{background:var(--surface2)}.card-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:.5rem}.card-headline{font-size:16px;font-weight:700;line-height:1.5;flex:1}.card.featured .card-headline{color:var(--purple)}.badge{font-family:var(--mono);font-size:9px;letter-spacing:.06em;padding:3px 9px;border-radius:20px;white-space:nowrap;background:var(--purple-bg);color:var(--purple);margin-top:2px}.card-body{font-size:14.5px;color:var(--text2);line-height:1.8;padding:0 3rem .85rem 1.4rem}.card-footer-bar{display:flex;align-items:center;gap:8px;padding:.55rem 1.4rem .75rem;border-top:1px solid var(--border)}.card-source,.card-readtime{font-family:var(--mono);font-size:10px;color:var(--text3)}.card-orig{font-family:var(--mono);font-size:10px;color:var(--purple);text-decoration:none;margin-left:auto;opacity:.75}.insight{background:var(--insight-bg);border-top:1px solid var(--insight-bdr);padding:.9rem 1.4rem 1rem}.insight-label{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--purple);margin-bottom:.35rem}.insight-text{font-size:13.5px;color:var(--text2);line-height:1.8}.empty-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.3rem;color:var(--text2)}#float-bar{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(80px);background:var(--text);color:#fff;border-radius:40px;padding:.65rem 1.4rem;display:flex;align-items:center;gap:1rem;font-family:var(--mono);font-size:11px;white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.25);transition:transform .3s ease,opacity .3s;opacity:0;pointer-events:none;z-index:100}#float-bar.visible{transform:translateX(-50%) translateY(0);opacity:1;pointer-events:all}#float-count{font-weight:700;color:#9b8fff}.float-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:20px;padding:.35rem .9rem;font-family:var(--mono);font-size:10px;cursor:pointer}.float-btn.primary{background:var(--purple);border-color:var(--purple)}.footer{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:.5rem;flex-wrap:wrap}.footer-text,.footer-link{font-family:var(--mono);font-size:10px;color:var(--text3)}.footer-link{color:var(--purple);text-decoration:none}@media(max-width:600px){.page{padding:0 1rem 6rem}.masthead-title{font-size:30px}.stat-strip{grid-template-columns:1fr}#float-bar{width:calc(100% - 2rem);justify-content:center;gap:.5rem}.float-btn{padding:.35rem .55rem}.card-footer-bar{align-items:flex-start;flex-direction:column}.card-orig{margin-left:0}}
+</style>
+</head>
+<body>
+<div class="page">
+<header class="masthead"><span class="masthead-tag">AI Daily Digest · MVP First</span><h1 class="masthead-title">AI <span>日报</span></h1><p class="masthead-sub">本地抓取 · Codex 中文摘要 · 固定 GitHub Pages 页面</p><div class="masthead-sources"><span class="masthead-date">2026年6月3日</span><a class="source-pill" href="https://ai.tldr.tech/" target="_blank" rel="noopener">TLDR AI ↗</a><a class="source-pill" href="https://www.therundown.ai/" target="_blank" rel="noopener">The Rundown AI ↗</a></div></header>
+<div class="status-panel"><div class="status-head"><div><div class="status-title">抓取状态</div><div class="masthead-sub">更新时间：2026/6/3 20:18:50</div></div><span class="status-badge success">成功</span></div><div class="source-row ok">
+<div><strong>TLDR AI</strong><span class="core-tag">核心源</span></div>
+<span>成功 · 14条</span>
+</div>
+<div class="source-row ok">
+<div><strong>The Rundown AI</strong><span class="core-tag">核心源</span></div>
+<span>成功 · 8条</span>
+</div>
+<div class="source-row warn">
+<div><strong>VentureBeat AI</strong></div>
+<span>无当日内容</span>
+</div>
+<div class="source-row ok">
+<div><strong>OpenAI News</strong></div>
+<span>成功 · 4条</span>
+</div></div>
+<div class="stat-strip"><div class="stat-box"><div class="stat-num">9</div><div class="stat-label">精选新闻</div></div><div class="stat-box"><div class="stat-num">4</div><div class="stat-label">信息来源</div></div><div class="stat-box"><div class="stat-num">~18 分钟</div><div class="stat-label">完整阅读</div></div></div>
+<div class="section-header"><div class="section-icon">🚀</div><span class="section-title">今日精选</span></div>
+<div class="card featured" data-id="n1" data-title="微软发布 7 个 MAI 模型，强调可调权重和工作流适配" data-summary="微软发布了 7 个新的 MAI 模型，称开发者可以自行调整模型权重，并把这些模型集成到日常产品中。它们使用 Frontier Tuning，让 AI 通过强化学习环境适配特定工作流。微软还宣布与 Mayo Clinic 合作开发医疗 AI 模型，先在 Mayo 内部部署，之后计划通过 Azure Foundry 分发。" data-link="https://microsoft.ai/news/building-a-hillclimbing-machine-launching-seven-new-mai-models/?utm_source=tldrai">
+<div class="card-check"><input type="checkbox" aria-label="选择此条新闻"></div>
+<a class="card-link-area" href="https://microsoft.ai/news/building-a-hillclimbing-machine-launching-seven-new-mai-models/?utm_source=tldrai" target="_blank" rel="noopener">
+<div class="card-top"><div class="card-headline">微软发布 7 个 MAI 模型，强调可调权重和工作流适配</div><span class="badge">产品</span></div>
+<div class="card-body">微软发布了 7 个新的 MAI 模型，称开发者可以自行调整模型权重，并把这些模型集成到日常产品中。它们使用 Frontier Tuning，让 AI 通过强化学习环境适配特定工作流。微软还宣布与 Mayo Clinic 合作开发医疗 AI 模型，先在 Mayo 内部部署，之后计划通过 Azure Foundry 分发。</div>
+</a>
+<div class="card-footer-bar"><span class="card-source">TLDR AI</span><span class="card-readtime">· 原文</span><a class="card-orig" href="https://microsoft.ai/news/building-a-hillclimbing-machine-launching-seven-new-mai-models/?utm_source=tldrai" target="_blank" rel="noopener">阅读原文 ↗</a></div>
+<div class="insight"><div class="insight-label">实用解读</div><div class="insight-text">如果你在工作中依赖 Microsoft 生态，这类模型可能会让企业工具更贴近具体流程，而不是只提供通用聊天能力。医疗合作的信息值得关注，但目前摘要没有给出普通用户可直接使用的产品形态。</div></div>
+</div>
+<div class="card featured" data-id="n2" data-title="OpenAI 为 Codex 增加新能力和 6 类角色插件" data-summary="OpenAI 发布了 Codex 的新能力，并推出面向数据分析、创意制作、销售、产品设计、股票投资和投资银行等角色的 6 个插件。原文摘要没有展开具体功能细节。" data-link="https://openai.com/index/codex-for-every-role-tool-workflow/?utm_source=tldrai">
+<div class="card-check"><input type="checkbox" aria-label="选择此条新闻"></div>
+<a class="card-link-area" href="https://openai.com/index/codex-for-every-role-tool-workflow/?utm_source=tldrai" target="_blank" rel="noopener">
+<div class="card-top"><div class="card-headline">OpenAI 为 Codex 增加新能力和 6 类角色插件</div><span class="badge">产品</span></div>
+<div class="card-body">OpenAI 发布了 Codex 的新能力，并推出面向数据分析、创意制作、销售、产品设计、股票投资和投资银行等角色的 6 个插件。原文摘要没有展开具体功能细节。</div>
+</a>
+<div class="card-footer-bar"><span class="card-source">TLDR AI</span><span class="card-readtime">· 原文</span><a class="card-orig" href="https://openai.com/index/codex-for-every-role-tool-workflow/?utm_source=tldrai" target="_blank" rel="noopener">阅读原文 ↗</a></div>
+<div class="insight"><div class="insight-label">实用解读</div><div class="insight-text">对轻度 AI 工作流用户来说，重点不是“写代码”，而是 Codex 正在变成面向不同岗位的任务执行环境。是否值得使用，取决于这些插件能否接入你的真实资料、工具和审批流程。</div></div>
+</div>
+<div class="card" data-id="n3" data-title="观点：开放模型和闭源模型可能走在不同增长曲线上" data-summary="文章认为，许多企业想切换到开放模型，但开放模型在分布外任务上目前还不够好。作者同时判断，开放模型终将追上，并且开放模型生态会比少数闭源实验室更加多样、数量更多。文中还提出开放模型经济总体价值可能大幅超过 OpenAI 和 Anthropic 的累计价值。" data-link="https://www.interconnects.ai/p/open-and-closed-models-are-on-different?utm_source=tldrai">
+<div class="card-check"><input type="checkbox" aria-label="选择此条新闻"></div>
+<a class="card-link-area" href="https://www.interconnects.ai/p/open-and-closed-models-are-on-different?utm_source=tldrai" target="_blank" rel="noopener">
+<div class="card-top"><div class="card-headline">观点：开放模型和闭源模型可能走在不同增长曲线上</div><span class="badge">研究</span></div>
+<div class="card-body">文章认为，许多企业想切换到开放模型，但开放模型在分布外任务上目前还不够好。作者同时判断，开放模型终将追上，并且开放模型生态会比少数闭源实验室更加多样、数量更多。文中还提出开放模型经济总体价值可能大幅超过 OpenAI 和 Anthropic 的累计价值。</div>
+</a>
+<div class="card-footer-bar"><span class="card-source">TLDR AI</span><span class="card-readtime">· 原文</span><a class="card-orig" href="https://www.interconnects.ai/p/open-and-closed-models-are-on-different?utm_source=tldrai" target="_blank" rel="noopener">阅读原文 ↗</a></div>
+<div class="insight"><div class="insight-label">实用解读</div><div class="insight-text">这是一篇观点文章，不是产品发布。对普通团队的实用启发是：不要只按“开源或闭源”做选择，关键要看你的任务是否需要强泛化能力、私有部署、成本控制和长期可替换性。</div></div>
+</div>
+<div class="card" data-id="n4" data-title="Perplexity 展示本地与云端混合推理系统" data-summary="Perplexity 在 Computex 2026 展示了混合本地-云端推理系统。系统会把轻量任务路由到设备端模型，把复杂推理任务交给云端模型处理，并延续其早前 Personal Computer agent 的方向。" data-link="https://www.perplexity.ai/hub/blog/the-data-center-moves-to-your-machine?utm_source=tldrai">
+<div class="card-check"><input type="checkbox" aria-label="选择此条新闻"></div>
+<a class="card-link-area" href="https://www.perplexity.ai/hub/blog/the-data-center-moves-to-your-machine?utm_source=tldrai" target="_blank" rel="noopener">
+<div class="card-top"><div class="card-headline">Perplexity 展示本地与云端混合推理系统</div><span class="badge">产品</span></div>
+<div class="card-body">Perplexity 在 Computex 2026 展示了混合本地-云端推理系统。系统会把轻量任务路由到设备端模型，把复杂推理任务交给云端模型处理，并延续其早前 Personal Computer agent 的方向。</div>
+</a>
+<div class="card-footer-bar"><span class="card-source">TLDR AI</span><span class="card-readtime">· 原文</span><a class="card-orig" href="https://www.perplexity.ai/hub/blog/the-data-center-moves-to-your-machine?utm_source=tldrai" target="_blank" rel="noopener">阅读原文 ↗</a></div>
+<div class="insight"><div class="insight-label">实用解读</div><div class="insight-text">这类设计对轻度用户的意义是更快、更省、也可能更私密：简单请求不必总上云，复杂任务仍可调用强模型。实际体验取决于路由是否稳定，以及本地设备性能是否足够。</div></div>
+</div>
+<div class="card featured" data-id="n5" data-title="Axios：Anthropic IPO 前面临企业 AI 成本压力" data-summary="Axios 报道称，Anthropic 在申请 IPO 之际，企业客户正更严格审视高 AI 成本，这可能影响其收入。摘要提到一项调查显示，40% 的企业成本节省低于 10%。尽管 Anthropic 表现强劲，并据称在企业客户方面超过 OpenAI，转向更便宜模型或开源替代方案仍是风险。" data-link="https://www.axios.com/2026/06/02/anthropic-ipo-ai-sticker-shock-spending-usage?utm_source=tldrai">
+<div class="card-check"><input type="checkbox" aria-label="选择此条新闻"></div>
+<a class="card-link-area" href="https://www.axios.com/2026/06/02/anthropic-ipo-ai-sticker-shock-spending-usage?utm_source=tldrai" target="_blank" rel="noopener">
+<div class="card-top"><div class="card-headline">Axios：Anthropic IPO 前面临企业 AI 成本压力</div><span class="badge">公司</span></div>
+<div class="card-body">Axios 报道称，Anthropic 在申请 IPO 之际，企业客户正更严格审视高 AI 成本，这可能影响其收入。摘要提到一项调查显示，40% 的企业成本节省低于 10%。尽管 Anthropic 表现强劲，并据称在企业客户方面超过 OpenAI，转向更便宜模型或开源替代方案仍是风险。</div>
+</a>
+<div class="card-footer-bar"><span class="card-source">TLDR AI</span><span class="card-readtime">· 原文</span><a class="card-orig" href="https://www.axios.com/2026/06/02/anthropic-ipo-ai-sticker-shock-spending-usage?utm_source=tldrai" target="_blank" rel="noopener">阅读原文 ↗</a></div>
+<div class="insight"><div class="insight-label">实用解读</div><div class="insight-text">这提醒团队不要只看模型能力，也要算清单位任务成本。轻度用户可以从高频、可衡量的场景开始，比如客服草稿、会议摘要、资料整理，再判断 AI 是否真的节省时间或预算。</div></div>
+</div>
+<div class="card" data-id="n6" data-title="Anthropic 将安全项目扩展至 15 国以上 150 个组织" data-summary="Anthropic 将 Project Glasswing 扩展到 15 个以上国家的新增 150 个合作伙伴。新伙伴需要满足安全要求后才能访问模型。摘要称项目启动以来，合作伙伴已发现超过 10,000 个高级或严重级别安全漏洞，主要伙伴包括 Apple、Nvidia、Microsoft、CrowdStrike 和 Palo Alto Networks。" data-link="https://www.cnbc.com/2026/06/02/anthropic-mythos-ai-project-glasswing.html?utm_source=tldrai">
+<div class="card-check"><input type="checkbox" aria-label="选择此条新闻"></div>
+<a class="card-link-area" href="https://www.cnbc.com/2026/06/02/anthropic-mythos-ai-project-glasswing.html?utm_source=tldrai" target="_blank" rel="noopener">
+<div class="card-top"><div class="card-headline">Anthropic 将安全项目扩展至 15 国以上 150 个组织</div><span class="badge">公司</span></div>
+<div class="card-body">Anthropic 将 Project Glasswing 扩展到 15 个以上国家的新增 150 个合作伙伴。新伙伴需要满足安全要求后才能访问模型。摘要称项目启动以来，合作伙伴已发现超过 10,000 个高级或严重级别安全漏洞，主要伙伴包括 Apple、Nvidia、Microsoft、CrowdStrike 和 Palo Alto Networks。</div>
+</a>
+<div class="card-footer-bar"><span class="card-source">TLDR AI</span><span class="card-readtime">· 原文</span><a class="card-orig" href="https://www.cnbc.com/2026/06/02/anthropic-mythos-ai-project-glasswing.html?utm_source=tldrai" target="_blank" rel="noopener">阅读原文 ↗</a></div>
+<div class="insight"><div class="insight-label">实用解读</div><div class="insight-text">如果你在企业里处理安全或合规，这说明大模型正在更深入进入漏洞发现流程。普通用户不必直接跟进项目本身，但应注意 AI 安全工具的使用门槛通常包括权限、数据隔离和审计要求。</div></div>
+</div>
+<div class="card" data-id="n7" data-title="GitHub 讨论智能体时代的平台压力与演进计划" data-summary="文章采访了 GitHub COO Kyle Daigle，讨论 AI 如何改变 GitHub、他如何在 GitHub 工作中使用 AI，以及 AI 时代给 GitHub 基础设施带来的新压力。摘要称，编码智能体在平台上推动了大量代码提交，今年增长达 1,400%，而 GitHub 原有基础设施主要围绕人类开发速度设计。" data-link="https://www.latent.space/p/github?utm_source=tldrai">
+<div class="card-check"><input type="checkbox" aria-label="选择此条新闻"></div>
+<a class="card-link-area" href="https://www.latent.space/p/github?utm_source=tldrai" target="_blank" rel="noopener">
+<div class="card-top"><div class="card-headline">GitHub 讨论智能体时代的平台压力与演进计划</div><span class="badge">公司</span></div>
+<div class="card-body">文章采访了 GitHub COO Kyle Daigle，讨论 AI 如何改变 GitHub、他如何在 GitHub 工作中使用 AI，以及 AI 时代给 GitHub 基础设施带来的新压力。摘要称，编码智能体在平台上推动了大量代码提交，今年增长达 1,400%，而 GitHub 原有基础设施主要围绕人类开发速度设计。</div>
+</a>
+<div class="card-footer-bar"><span class="card-source">TLDR AI</span><span class="card-readtime">· 原文</span><a class="card-orig" href="https://www.latent.space/p/github?utm_source=tldrai" target="_blank" rel="noopener">阅读原文 ↗</a></div>
+<div class="insight"><div class="insight-label">实用解读</div><div class="insight-text">对非重度开发者来说，这意味着 AI 写代码不只是个人效率工具，还会改变协作、审查和平台负载。使用编码智能体时，应更重视版本管理、自动测试和人工审核，而不是只追求生成速度。</div></div>
+</div>
+<div class="card featured" data-id="n8" data-title="Mem0 调研多个智能体记忆实现，指出污染和过期问题" data-summary="Mem0 调研了 Claude Code、Codex、Copilot、OpenClaw、Hermes、Bedrock AgentCore、Windsurf 和 Devin 等工具中的记忆实现。其发现包括本地存储受限、主要依赖关键词检索、作用域受 harness 限制、过期处理较弱，以及 57%-71% 的跨用户污染率。该信息来自 X 帖摘要，细节有限。" data-link="https://x.com/mem0ai/status/2061822612398014782?utm_source=tldrai">
+<div class="card-check"><input type="checkbox" aria-label="选择此条新闻"></div>
+<a class="card-link-area" href="https://x.com/mem0ai/status/2061822612398014782?utm_source=tldrai" target="_blank" rel="noopener">
+<div class="card-top"><div class="card-headline">Mem0 调研多个智能体记忆实现，指出污染和过期问题</div><span class="badge">研究</span></div>
+<div class="card-body">Mem0 调研了 Claude Code、Codex、Copilot、OpenClaw、Hermes、Bedrock AgentCore、Windsurf 和 Devin 等工具中的记忆实现。其发现包括本地存储受限、主要依赖关键词检索、作用域受 harness 限制、过期处理较弱，以及 57%-71% 的跨用户污染率。该信息来自 X 帖摘要，细节有限。</div>
+</a>
+<div class="card-footer-bar"><span class="card-source">TLDR AI</span><span class="card-readtime">· 原文</span><a class="card-orig" href="https://x.com/mem0ai/status/2061822612398014782?utm_source=tldrai" target="_blank" rel="noopener">阅读原文 ↗</a></div>
+<div class="insight"><div class="insight-label">实用解读</div><div class="insight-text">如果你让 AI 记住偏好、项目背景或客户资料，要谨慎对待“记忆”功能。轻度用户应定期检查保存的上下文，避免把敏感信息、过期规则或不同客户资料混在同一个工作流里。</div></div>
+</div>
+<div class="card" data-id="n9" data-title="The Rundown AI 提到微软 Build 与影视 AI 话题，但信息不足" data-summary="该条目标题提到微软在 Build 上推进自己的 AI 路线，并提到好莱坞导演与 AI 相关内容。stdin 中没有提供摘要和发布时间，因此无法确认具体产品、事件细节或结论。" data-link="https://www.therundown.ai/p/microsoft-paves-its-own-ai-way-at-build">
+<div class="card-check"><input type="checkbox" aria-label="选择此条新闻"></div>
+<a class="card-link-area" href="https://www.therundown.ai/p/microsoft-paves-its-own-ai-way-at-build" target="_blank" rel="noopener">
+<div class="card-top"><div class="card-headline">The Rundown AI 提到微软 Build 与影视 AI 话题，但信息不足</div><span class="badge">快讯</span></div>
+<div class="card-body">该条目标题提到微软在 Build 上推进自己的 AI 路线，并提到好莱坞导演与 AI 相关内容。stdin 中没有提供摘要和发布时间，因此无法确认具体产品、事件细节或结论。</div>
+</a>
+<div class="card-footer-bar"><span class="card-source">The Rundown AI</span><span class="card-readtime">· 原文</span><a class="card-orig" href="https://www.therundown.ai/p/microsoft-paves-its-own-ai-way-at-build" target="_blank" rel="noopener">阅读原文 ↗</a></div>
+<div class="insight"><div class="insight-label">实用解读</div><div class="insight-text">这条目前不适合作为决策依据。可以先把它当作待补充线索，等有完整摘要或原文后再判断是否与日常办公、创作或自动化工作流有关。</div></div>
+</div><div class="footer"><span class="footer-text">AI Daily Digest MVP · 固定 index.html · 不保留历史 report 链接</span><a class="footer-link" href="./" target="_self">固定页面链接</a></div>
+</div>
+<div id="float-bar"><span>已选 <span id="float-count">0</span> 条</span><button class="float-btn" onclick="clearAll()">清除选择</button><button class="float-btn primary" onclick="copySelection()">复制标题+链接</button></div>
+<script>
+var selectedIds = [];
+function hasSelected(id){var i;for(i=0;i<selectedIds.length;i++){if(selectedIds[i]===id){return true;}}return false;}
+function addSelected(id){if(!hasSelected(id)){selectedIds.push(id);}}
+function removeSelected(id){var out=[],i;for(i=0;i<selectedIds.length;i++){if(selectedIds[i]!==id){out.push(selectedIds[i]);}}selectedIds=out;}
+function updateFloatBar(){var bar=document.getElementById("float-bar");document.getElementById("float-count").innerHTML=String(selectedIds.length);if(selectedIds.length>0){bar.className="visible";}else{bar.className="";}}
+function buildText(){var lines=[],i,el,title,link;for(i=0;i<selectedIds.length;i++){el=document.querySelector("[data-id=\"" + selectedIds[i] + "\"]");if(!el){continue;}title=el.getAttribute("data-title")||"";link=el.getAttribute("data-link")||"";lines.push(title);lines.push(link);lines.push("");}return lines.join("\n");}
+function fallbackCopy(text){var ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);}
+function copySelection(){var text=buildText();var btn=document.querySelector(".float-btn.primary");var old=btn.innerHTML;function done(){btn.innerHTML="已复制 ✓";setTimeout(function(){btn.innerHTML=old;},1600);}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,function(){fallbackCopy(text);done();});}else{fallbackCopy(text);done();}}
+function clearAll(){var boxes=document.querySelectorAll("input[type=checkbox]"),cards=document.querySelectorAll(".card"),i;selectedIds=[];for(i=0;i<boxes.length;i++){boxes[i].checked=false;}for(i=0;i<cards.length;i++){cards[i].className=cards[i].className.replace(/ selected/g,"");}updateFloatBar();}
+function wireCards(){var cards=document.querySelectorAll(".card[data-id]"),i;for(i=0;i<cards.length;i++){(function(card){var cb=card.querySelector("input[type=checkbox]");if(!cb){return;}cb.onchange=function(){var id=card.getAttribute("data-id");if(cb.checked){addSelected(id);if(card.className.indexOf("selected")===-1){card.className+=" selected";}}else{removeSelected(id);card.className=card.className.replace(/ selected/g,"");}updateFloatBar();};cb.onclick=function(e){if(e&&e.stopPropagation){e.stopPropagation();}};})(cards[i]);}}
+wireCards();
+</script>
+</body>
+</html>
