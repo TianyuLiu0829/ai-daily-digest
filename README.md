@@ -56,9 +56,21 @@ CLI 支持非交互命令：
 
 ## GitHub Pages 状态
 
-初始检查结果：这个目录原本不是 Git 仓库，也没有远程 GitHub Pages repo。
+已创建 public repo：
 
-固定 Pages 链接需要你之后把本目录推到一个 GitHub repo，并在 GitHub Pages 中选择发布 `main` 分支根目录。发布后每次更新都覆盖同一个 `index.html`。
+```text
+https://github.com/TianyuLiu0829/ai-daily-digest
+```
+
+固定 Pages 链接：
+
+```text
+https://tianyuliu0829.github.io/ai-daily-digest/
+```
+
+当前 Pages 发布源为 `main` 分支根目录。发布时没有创建每日历史链接，只覆盖固定 `index.html`。
+
+注意：本机命令行当前没有可用的 GitHub HTTPS/SSH 推送凭据，所以这次 `index.html` 是通过浏览器写入 GitHub 的。后续如果要让脚本自动推送，需要再配置 GitHub CLI、SSH key 或 token。
 
 ## 可选本地自动化
 
