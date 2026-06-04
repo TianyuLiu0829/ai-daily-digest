@@ -328,24 +328,39 @@ function rankItems(items) {
   var lowSignalWords = /bug fix|bugfix|minor fix|patch release|maintenance|typo|docs update|documentation update|sdk update|sdk release|dependency update|performance bug|ui polish/i;
   var rescueWords = /security|privacy|data loss|permission|agent|model|launch|release|pricing|price|free|subscription|copilot|workflow|automation|memory|browser|email|calendar|files|customer data|enterprise|consumer/i;
   var scored = [];
+  var selected = [];
+  var sourceCounts = {};
   var i;
   for (i = 0; i < items.length; i++) {
     var text = items[i].title + ' ' + items[i].summary;
     if (lowSignalWords.test(text) && !rescueWords.test(text)) continue;
     var score = 0;
-    if (items[i].sourceCore) score += 3;
+    if (items[i].sourceCore) score += 1;
     if (highWords.test(text)) score += 3;
+    if (/OpenAI|Google|DeepMind|Microsoft|GitHub|Cursor|Zapier|Canva|VentureBeat|TechCrunch|Decoder/i.test(items[i].sourceName)) score += 1;
     if (/official|blog|docs|changelog|release|model|tool|product|agent|automation|workflow|pricing|privacy|security/i.test(text)) score += 1;
     if (/funding|raises|valuation|stock|shares/i.test(text) && !/product|launch|acquire|acquisition|partnership|integrat/i.test(text)) score -= 2;
     scored.push({ item: items[i], score: score });
   }
-  return scored.sort(function (a, b) {
+  scored = scored.sort(function (a, b) {
     var as = a.score;
     var bs = b.score;
     return bs - as;
-  }).slice(0, MAX_ITEMS).map(function (entry) {
-    return entry.item;
   });
+  for (i = 0; i < scored.length; i++) {
+    var sourceId = scored[i].item.sourceId;
+    var current = sourceCounts[sourceId] || 0;
+    if (current >= 3) continue;
+    selected.push(scored[i].item);
+    sourceCounts[sourceId] = current + 1;
+    if (selected.length >= MAX_ITEMS) return selected;
+  }
+  for (i = 0; i < scored.length; i++) {
+    if (selected.indexOf(scored[i].item) !== -1) continue;
+    selected.push(scored[i].item);
+    if (selected.length >= MAX_ITEMS) return selected;
+  }
+  return selected;
 }
 
 function fallbackDigest(items) {
@@ -546,12 +561,12 @@ function main() {
     return;
   }
 
-  if (!hasFlag('--force') && state.generatedDate === iso && state.pagesPublished === true && fs.existsSync(INDEX_PATH)) {
+  if (!hasFlag('--force') && state.generatedDate === iso && state.pagesPublished === true && state.overallStatus !== 'no_today' && fs.existsSync(INDEX_PATH)) {
     console.log('AI Daily Digest already published for ' + iso + '. Use --force to regenerate.');
     return;
   }
 
-  if (!hasFlag('--force') && state.generatedDate === iso && fs.existsSync(INDEX_PATH)) {
+  if (!hasFlag('--force') && state.generatedDate === iso && state.overallStatus !== 'no_today' && fs.existsSync(INDEX_PATH)) {
     try {
       var retryResult = publishToGitHub(iso);
       updateState({
@@ -614,6 +629,15 @@ function main() {
       return { items: items, digest: fallbackDigest(items), codexError: err.message };
     });
   }).then(function (result) {
+    var computedStatus = computeOverallStatus(sourceResults, result.items);
+    if (computedStatus === 'no_today' && state.generatedDate === iso && state.overallStatus === 'no_today' && fs.existsSync(INDEX_PATH)) {
+      updateState({
+        lastAttemptAt: nowText(),
+        publishError: null
+      });
+      console.log('No today content yet; existing no_today page retained.');
+      return;
+    }
     var data = {
       date: iso,
       generatedAt: nowText(),
@@ -621,7 +645,7 @@ function main() {
       items: result.items,
       digest: result.digest,
       codexError: result.codexError,
-      overallStatus: computeOverallStatus(sourceResults, result.items)
+      overallStatus: computedStatus
     };
     fs.writeFileSync(INDEX_PATH, renderHtml(data));
     var statePatch = {

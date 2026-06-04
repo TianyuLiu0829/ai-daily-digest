@@ -10,10 +10,10 @@
   {
     "id": "the-rundown-ai",
     "name": "The Rundown AI",
-    "url": "https://www.therundown.ai/",
+    "url": "https://rss.beehiiv.com/feeds/2R3C6Bt5wj.xml",
     "homepage": "https://www.therundown.ai/",
     "core": true,
-    "parser": "genericHtml"
+    "parser": "rss"
   },
   {
     "id": "venturebeat-ai",
@@ -76,14 +76,6 @@
     "name": "Cursor Changelog",
     "url": "https://www.cursor.com/changelog/rss.xml",
     "homepage": "https://www.cursor.com/changelog",
-    "core": false,
-    "parser": "rss"
-  },
-  {
-    "id": "zapier-blog",
-    "name": "Zapier Blog",
-    "url": "https://zapier.com/blog/feeds/latest/",
-    "homepage": "https://zapier.com/blog/",
     "core": false,
     "parser": "rss"
   },
