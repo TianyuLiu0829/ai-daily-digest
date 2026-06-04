@@ -630,12 +630,18 @@ function main() {
     });
   }).then(function (result) {
     var computedStatus = computeOverallStatus(sourceResults, result.items);
-    if (computedStatus === 'no_today' && state.generatedDate === iso && state.overallStatus === 'no_today' && fs.existsSync(INDEX_PATH)) {
+    if (computedStatus === 'no_today' && fs.existsSync(INDEX_PATH)) {
       updateState({
+        generatedDate: iso,
+        generatedAt: nowText(),
+        overallStatus: 'no_today',
+        itemCount: 0,
         lastAttemptAt: nowText(),
+        pagesPublished: true,
+        publishStatus: 'retained previous page',
         publishError: null
       });
-      console.log('No today content yet; existing no_today page retained.');
+      console.log('No today content yet; previous page retained.');
       return;
     }
     var data = {
