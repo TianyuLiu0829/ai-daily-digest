@@ -1,0 +1,29 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["titleZh", "summaryZh", "insightZh", "category", "importance"],
+        "properties": {
+          "titleZh": { "type": "string" },
+          "summaryZh": { "type": "string" },
+          "insightZh": { "type": "string" },
+          "category": {
+            "type": "string",
+            "enum": ["头条", "产品", "工具", "研究", "公司", "政策", "实操", "快讯"]
+          },
+          "importance": {
+            "type": "string",
+            "enum": ["high", "normal", "low"]
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+[
+  {
+    "id": "tldr-ai",
+    "name": "TLDR AI",
+    "url": "https://bullrich.dev/tldr-rss/ai.html",
+    "homepage": "https://ai.tldr.tech/",
+    "core": true,
+    "parser": "tldrHtml"
+  },
+  {
+    "id": "the-rundown-ai",
+    "name": "The Rundown AI",
+    "url": "https://www.therundown.ai/",
+    "homepage": "https://www.therundown.ai/",
+    "core": true,
+    "parser": "genericHtml"
+  },
+  {
+    "id": "venturebeat-ai",
+    "name": "VentureBeat AI",
+    "url": "https://venturebeat.com/category/ai/feed/",
+    "homepage": "https://venturebeat.com/ai/",
+    "core": false,
+    "parser": "rss"
+  },
+  {
+    "id": "openai-news",
+    "name": "OpenAI News",
+    "url": "https://openai.com/news/rss.xml",
+    "homepage": "https://openai.com/news/",
+    "core": false,
+    "parser": "rss"
+  }
+]
