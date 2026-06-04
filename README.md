@@ -38,6 +38,24 @@ node scripts/generate-digest.js --force
 node scripts/generate-digest.js --force --no-codex
 ```
 
+只检查/重试发布现有 `index.html`，不抓取新闻、不调用 Codex：
+
+```sh
+node scripts/generate-digest.js --publish-only
+```
+
+只生成本地页面，不发布到 GitHub：
+
+```sh
+node scripts/generate-digest.js --force --no-publish
+```
+
+脚本退出逻辑：
+
+- 今天已发布成功：直接退出。
+- 今天已本地生成但未发布成功：只重试发布。
+- 今天未生成：抓取来源、调用 Codex、生成 `index.html`、发布到 GitHub Pages。
+
 ## 来源与筛选
 
 来源配置在 `config/sources.json`。

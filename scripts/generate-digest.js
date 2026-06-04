@@ -16,6 +16,7 @@ var CODEX_BIN = process.env.CODEX_BIN || '/Applications/Codex.app/Contents/Resou
 var MAX_ITEMS = parseInt(process.env.DIGEST_MAX_ITEMS || '8', 10);
 var FETCH_TIMEOUT_MS = parseInt(process.env.DIGEST_FETCH_TIMEOUT_MS || '18000', 10);
 var CODEX_TIMEOUT_MS = parseInt(process.env.DIGEST_CODEX_TIMEOUT_MS || '180000', 10);
+var PAGES_URL = process.env.DIGEST_PAGES_URL || 'https://tianyuliu0829.github.io/ai-daily-digest/';
 
 function hasFlag(name) {
   return process.argv.indexOf(name) !== -1;
@@ -57,6 +58,97 @@ function readText(file, fallback) {
 
 function writeJson(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
+
+function runCommand(command, args) {
+  var result = childProcess.spawnSync(command, args, {
+    cwd: ROOT,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  return {
+    status: result.status,
+    stdout: result.stdout || '',
+    stderr: result.stderr || '',
+    error: result.error || null
+  };
+}
+
+function runCommandOrThrow(command, args) {
+  var result = runCommand(command, args);
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(command + ' ' + args.join(' ') + ' failed: ' + compactText(result.stderr || result.stdout, 700));
+  }
+  return result;
+}
+
+function hasGitChanges() {
+  var result = runCommand('git', ['status', '--porcelain']);
+  if (result.error || result.status !== 0) return true;
+  return result.stdout.trim().length > 0;
+}
+
+function hasIndexChange() {
+  var result = runCommand('git', ['status', '--porcelain', '--', 'index.html']);
+  if (result.error || result.status !== 0) return true;
+  return result.stdout.trim().length > 0;
+}
+
+function hasUnpushedCommits() {
+  var upstream = runCommand('git', ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']);
+  if (upstream.error || upstream.status !== 0) return false;
+  var result = runCommand('git', ['rev-list', '--count', '@{u}..HEAD']);
+  if (result.error || result.status !== 0) return true;
+  return parseInt(result.stdout.trim() || '0', 10) > 0;
+}
+
+function publishToGitHub(iso) {
+  if (hasFlag('--no-publish')) {
+    return {
+      published: false,
+      skipped: true,
+      reason: 'disabled by --no-publish'
+    };
+  }
+  runCommandOrThrow('git', ['add', 'index.html']);
+  if (!hasIndexChange()) {
+    if (hasUnpushedCommits()) {
+      runCommandOrThrow('git', ['push']);
+      return {
+        published: true,
+        skipped: false,
+        reason: 'pushed pending commits',
+        url: PAGES_URL
+      };
+    }
+    return {
+      published: true,
+      skipped: true,
+      reason: 'index.html unchanged',
+      url: PAGES_URL
+    };
+  }
+  runCommandOrThrow('git', ['commit', '-m', 'Update AI Daily Digest for ' + iso]);
+  runCommandOrThrow('git', ['push']);
+  return {
+    published: true,
+    skipped: false,
+    reason: 'pushed index.html',
+    url: PAGES_URL
+  };
+}
+
+function updateState(patch) {
+  var state = readJson(STATE_PATH, {});
+  var key;
+  for (key in patch) {
+    if (Object.prototype.hasOwnProperty.call(patch, key)) {
+      state[key] = patch[key];
+    }
+  }
+  writeJson(STATE_PATH, state);
+  return state;
 }
 
 function escapeHtml(value) {
@@ -429,8 +521,56 @@ function computeOverallStatus(sourceResults, items) {
 function main() {
   var iso = todayISO();
   var state = readJson(STATE_PATH, {});
+
+  if (hasFlag('--publish-only')) {
+    try {
+      var publishOnlyResult = publishToGitHub(iso);
+      updateState({
+        generatedDate: state.generatedDate || iso,
+        pagesPublished: publishOnlyResult.published,
+        publishedUrl: publishOnlyResult.url || state.publishedUrl || PAGES_URL,
+        publishedAt: publishOnlyResult.published ? nowText() : state.publishedAt,
+        publishStatus: publishOnlyResult.reason,
+        publishError: null
+      });
+      console.log('Publish check: ' + publishOnlyResult.reason);
+    } catch (err) {
+      updateState({
+        pagesPublished: false,
+        publishError: err.message,
+        publishFailedAt: nowText()
+      });
+      console.error('Publish failed: ' + err.message);
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  if (!hasFlag('--force') && state.generatedDate === iso && state.pagesPublished === true && fs.existsSync(INDEX_PATH)) {
+    console.log('AI Daily Digest already published for ' + iso + '. Use --force to regenerate.');
+    return;
+  }
+
   if (!hasFlag('--force') && state.generatedDate === iso && fs.existsSync(INDEX_PATH)) {
-    console.log('AI Daily Digest already generated for ' + iso + '. Use --force to regenerate.');
+    try {
+      var retryResult = publishToGitHub(iso);
+      updateState({
+        pagesPublished: retryResult.published,
+        publishedUrl: retryResult.url || state.publishedUrl || PAGES_URL,
+        publishedAt: retryResult.published ? nowText() : state.publishedAt,
+        publishStatus: retryResult.reason,
+        publishError: null
+      });
+      console.log('AI Daily Digest already generated for ' + iso + '. Publish check: ' + retryResult.reason);
+    } catch (err) {
+      updateState({
+        pagesPublished: false,
+        publishError: err.message,
+        publishFailedAt: nowText()
+      });
+      console.error('Publish failed: ' + err.message);
+      process.exitCode = 1;
+    }
     return;
   }
 
@@ -484,15 +624,38 @@ function main() {
       overallStatus: computeOverallStatus(sourceResults, result.items)
     };
     fs.writeFileSync(INDEX_PATH, renderHtml(data));
-    writeJson(STATE_PATH, {
+    var statePatch = {
       generatedDate: iso,
       generatedAt: data.generatedAt,
       overallStatus: data.overallStatus,
       itemCount: data.items.length,
-      codexError: data.codexError || null
-    });
+      codexError: data.codexError || null,
+      pagesPublished: false,
+      publishStatus: null,
+      publishError: null
+    };
+    writeJson(STATE_PATH, statePatch);
     console.log('Generated index.html: ' + statusLabel(data.overallStatus) + ', items=' + data.items.length);
     if (data.codexError) console.log('Codex fallback: ' + data.codexError);
+    try {
+      var publishResult = publishToGitHub(iso);
+      updateState({
+        pagesPublished: publishResult.published,
+        publishedUrl: publishResult.url || PAGES_URL,
+        publishedAt: publishResult.published ? nowText() : null,
+        publishStatus: publishResult.reason,
+        publishError: null
+      });
+      console.log('Publish check: ' + publishResult.reason);
+    } catch (err) {
+      updateState({
+        pagesPublished: false,
+        publishError: err.message,
+        publishFailedAt: nowText()
+      });
+      console.error('Publish failed: ' + err.message);
+      process.exitCode = 1;
+    }
   }).catch(function (err) {
     console.error(err.stack || err.message);
     process.exitCode = 1;
