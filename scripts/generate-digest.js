@@ -10,9 +10,10 @@ var STATE_PATH = path.join(ROOT, '.digest-state.json');
 var INPUT_PATH = path.join(ROOT, '.digest-last-input.json');
 var OUTPUT_PATH = path.join(ROOT, '.digest-last-output.json');
 var SOURCES_PATH = path.join(ROOT, 'config', 'sources.json');
+var EDITORIAL_RULES_PATH = path.join(ROOT, 'config', 'editorial-rules.md');
 var SCHEMA_PATH = path.join(ROOT, 'codex-output.schema.json');
 var CODEX_BIN = process.env.CODEX_BIN || '/Applications/Codex.app/Contents/Resources/codex';
-var MAX_ITEMS = parseInt(process.env.DIGEST_MAX_ITEMS || '9', 10);
+var MAX_ITEMS = parseInt(process.env.DIGEST_MAX_ITEMS || '8', 10);
 var FETCH_TIMEOUT_MS = parseInt(process.env.DIGEST_FETCH_TIMEOUT_MS || '18000', 10);
 var CODEX_TIMEOUT_MS = parseInt(process.env.DIGEST_CODEX_TIMEOUT_MS || '180000', 10);
 
@@ -41,6 +42,14 @@ function nowText() {
 function readJson(file, fallback) {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (err) {
+    return fallback;
+  }
+}
+
+function readText(file, fallback) {
+  try {
+    return fs.readFileSync(file, 'utf8');
   } catch (err) {
     return fallback;
   }
@@ -223,12 +232,28 @@ function dedupe(items) {
 }
 
 function rankItems(items) {
-  var highWords = /openai|anthropic|google|deepmind|nvidia|microsoft|meta|claude|chatgpt|gemini|codex|agent|agents|agi|safety|policy|regulation|china|cursor|deepseek/i;
-  return items.sort(function (a, b) {
-    var as = (a.sourceCore ? 3 : 0) + (highWords.test(a.title + ' ' + a.summary) ? 2 : 0);
-    var bs = (b.sourceCore ? 3 : 0) + (highWords.test(b.title + ' ' + b.summary) ? 2 : 0);
+  var highWords = /openai|anthropic|google|deepmind|nvidia|microsoft|meta|apple|amazon|claude|chatgpt|gemini|copilot|codex|cursor|perplexity|deepseek|qwen|mistral|llama|agent|agents|automation|workflow|memory|browser|email|calendar|files|notion|canva|adobe|zapier|price|pricing|free|subscription|privacy|copyright|security|safety|policy|regulation|china/i;
+  var lowSignalWords = /bug fix|bugfix|minor fix|patch release|maintenance|typo|docs update|documentation update|sdk update|sdk release|dependency update|performance bug|ui polish/i;
+  var rescueWords = /security|privacy|data loss|permission|agent|model|launch|release|pricing|price|free|subscription|copilot|workflow|automation|memory|browser|email|calendar|files|customer data|enterprise|consumer/i;
+  var scored = [];
+  var i;
+  for (i = 0; i < items.length; i++) {
+    var text = items[i].title + ' ' + items[i].summary;
+    if (lowSignalWords.test(text) && !rescueWords.test(text)) continue;
+    var score = 0;
+    if (items[i].sourceCore) score += 3;
+    if (highWords.test(text)) score += 3;
+    if (/official|blog|docs|changelog|release|model|tool|product|agent|automation|workflow|pricing|privacy|security/i.test(text)) score += 1;
+    if (/funding|raises|valuation|stock|shares/i.test(text) && !/product|launch|acquire|acquisition|partnership|integrat/i.test(text)) score -= 2;
+    scored.push({ item: items[i], score: score });
+  }
+  return scored.sort(function (a, b) {
+    var as = a.score;
+    var bs = b.score;
     return bs - as;
-  }).slice(0, MAX_ITEMS);
+  }).slice(0, MAX_ITEMS).map(function (entry) {
+    return entry.item;
+  });
 }
 
 function fallbackDigest(items) {
@@ -256,13 +281,17 @@ function runCodexDigest(items, iso) {
   var input = {
     date: iso,
     instruction: '请把这些 AI 新闻生成中文日报条目。面向轻度 AI 工作流用户，避免空泛，输出必须符合 schema。',
+    editorialRules: readText(EDITORIAL_RULES_PATH, ''),
     items: items
   };
   writeJson(INPUT_PATH, input);
   var prompt = [
     '你是 AI Daily Digest 的中文编辑。',
     '基于 stdin JSON 生成最多 ' + MAX_ITEMS + ' 条中文日报。',
+    '严格按 editorialRules 筛选：优先消费者 AI、AI 工作流、工具选择、成本/权限/风险变化；排除小 bug fix、SDK patch、纯 hype、纯融资和无实际影响的 benchmark。',
+    '如果候选不足，不要硬凑数量；只保留真正会改变实际使用方式的信息。',
     '每条包含：中文标题、2-3 句中文摘要、对轻度 AI 工作流用户的实用解读、分类、重要性。',
+    '实用解读必须给明确今日判断，例如：可以试用、值得关注、暂不急用、适合个人 workflow、需要谨慎、先观察。',
     '不要编造原文没有的信息；如果信息不足，明确写信息有限。',
     '只输出符合 schema 的 JSON。'
   ].join('\n');

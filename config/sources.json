@@ -24,6 +24,78 @@
     "parser": "rss"
   },
   {
+    "id": "techcrunch-ai",
+    "name": "TechCrunch AI",
+    "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
+    "homepage": "https://techcrunch.com/category/artificial-intelligence/",
+    "core": false,
+    "parser": "rss"
+  },
+  {
+    "id": "the-decoder",
+    "name": "The Decoder",
+    "url": "https://the-decoder.com/feed/",
+    "homepage": "https://the-decoder.com/",
+    "core": false,
+    "parser": "rss"
+  },
+  {
+    "id": "google-deepmind",
+    "name": "Google DeepMind Blog",
+    "url": "https://deepmind.google/blog/rss.xml",
+    "homepage": "https://deepmind.google/blog/",
+    "core": false,
+    "parser": "rss"
+  },
+  {
+    "id": "microsoft-ai",
+    "name": "Microsoft AI Blog",
+    "url": "https://blogs.microsoft.com/ai/feed/",
+    "homepage": "https://blogs.microsoft.com/ai/",
+    "core": false,
+    "parser": "rss"
+  },
+  {
+    "id": "github-ai",
+    "name": "GitHub AI",
+    "url": "https://github.blog/ai-and-ml/feed/",
+    "homepage": "https://github.blog/ai-and-ml/",
+    "core": false,
+    "parser": "rss"
+  },
+  {
+    "id": "github-copilot",
+    "name": "GitHub Copilot",
+    "url": "https://github.blog/ai-and-ml/github-copilot/feed/",
+    "homepage": "https://github.blog/ai-and-ml/github-copilot/",
+    "core": false,
+    "parser": "rss"
+  },
+  {
+    "id": "cursor-changelog",
+    "name": "Cursor Changelog",
+    "url": "https://www.cursor.com/changelog/rss.xml",
+    "homepage": "https://www.cursor.com/changelog",
+    "core": false,
+    "parser": "rss"
+  },
+  {
+    "id": "zapier-blog",
+    "name": "Zapier Blog",
+    "url": "https://zapier.com/blog/feeds/latest/",
+    "homepage": "https://zapier.com/blog/",
+    "core": false,
+    "parser": "rss"
+  },
+  {
+    "id": "canva-engineering",
+    "name": "Canva Engineering",
+    "url": "https://www.canva.dev/blog/engineering/feed.xml",
+    "homepage": "https://www.canva.dev/blog/engineering/",
+    "core": false,
+    "parser": "rss"
+  },
+  {
     "id": "openai-news",
     "name": "OpenAI News",
     "url": "https://openai.com/news/rss.xml",

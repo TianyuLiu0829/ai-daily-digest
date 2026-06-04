@@ -38,6 +38,14 @@ node scripts/generate-digest.js --force
 node scripts/generate-digest.js --force --no-codex
 ```
 
+## 来源与筛选
+
+来源配置在 `config/sources.json`。
+
+编辑筛选规则在 `config/editorial-rules.md`。当前策略是：来源尽量覆盖主流 AI 生态，但入选日报时优先保留消费者可用、AI 工作流、工具选择、成本/权限/风险变化相关的信息；默认排除小 bug fix、SDK patch、纯融资、纯 hype、无实际产品意义的 benchmark。
+
+没有一次性加入所有旧版 research 来源，因为来源越多，解析失败、重复新闻和 Codex token 消耗都会上升。当前先加入已验证可访问的第一批稳定 feed；没有稳定 RSS 的官方站点暂不自动抓取，避免每天抓到旧内容。
+
 ## Codex 非交互运行
 
 本机已检测到 Codex CLI：
