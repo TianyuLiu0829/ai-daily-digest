@@ -72,6 +72,16 @@
     "parser": "rss"
   },
   {
+    "id": "hellogithub",
+    "name": "HelloGitHub",
+    "url": "https://hellogithub.com/rss",
+    "homepage": "https://hellogithub.com/",
+    "core": false,
+    "parser": "rss",
+    "category": "github",
+    "fallbackDays": 60
+  },
+  {
     "id": "cursor-changelog",
     "name": "Cursor Changelog",
     "url": "https://www.cursor.com/changelog/rss.xml",

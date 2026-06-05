@@ -19,6 +19,7 @@ var MAX_ITEMS = parseInt(process.env.DIGEST_MAX_ITEMS || '8', 10);
 var FETCH_TIMEOUT_MS = parseInt(process.env.DIGEST_FETCH_TIMEOUT_MS || '18000', 10);
 var CODEX_TIMEOUT_MS = parseInt(process.env.DIGEST_CODEX_TIMEOUT_MS || '180000', 10);
 var PAGES_URL = process.env.DIGEST_PAGES_URL || 'https://tianyuliu0829.github.io/ai-daily-digest/';
+var REQUIRED_CATEGORY_IDS = ['fund', 'research', 'github'];
 
 function hasFlag(name) {
   return process.argv.indexOf(name) !== -1;
@@ -42,6 +43,14 @@ function shiftISO(iso, days) {
 function dateZh(iso) {
   var parts = iso.split('-');
   return parts[0] + '年' + parseInt(parts[1], 10) + '月' + parseInt(parts[2], 10) + '日';
+}
+
+function dateTimeText(dateText) {
+  var date;
+  if (!dateText) return '发布时间未知';
+  date = new Date(dateText);
+  if (isNaN(date.getTime())) return dateText;
+  return date.getFullYear() + '年' + pad(date.getMonth() + 1) + '月' + pad(date.getDate()) + '日 ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
 }
 
 function nowText() {
@@ -179,6 +188,12 @@ function stripTags(value) {
     .replace(/&gt;/g, '>')
     .replace(/&#39;/g, "'")
     .replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, function (_, code) {
+      return String.fromCharCode(parseInt(code, 10));
+    })
+    .replace(/&#x([0-9a-f]+);/gi, function (_, code) {
+      return String.fromCharCode(parseInt(code, 16));
+    })
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -224,6 +239,164 @@ function fetchWithTimeout(url) {
   });
 }
 
+function fetchJsonWithTimeout(url) {
+  return fetchWithTimeout(url).then(function (text) {
+    return JSON.parse(text);
+  });
+}
+
+function extractGitHubRepo(url) {
+  var match = /^https?:\/\/github\.com\/([^\/?#]+)\/([^\/?#]+)/i.exec(String(url || ''));
+  if (!match) return null;
+  if (/^(topics|features|marketplace|collections|about|pricing|login|join)$/i.test(match[1])) return null;
+  return {
+    owner: match[1],
+    repo: match[2].replace(/\.git$/i, '')
+  };
+}
+
+function compactNumber(num) {
+  num = parseInt(num || 0, 10);
+  if (num >= 10000) return Math.round(num / 1000) / 10 + '万';
+  if (num >= 1000) return Math.round(num / 100) / 10 + 'k';
+  return String(num);
+}
+
+function monthsSince(dateText) {
+  var date = new Date(dateText);
+  var now = new Date();
+  if (isNaN(date.getTime())) return 999;
+  return (now.getFullYear() - date.getFullYear()) * 12 + (now.getMonth() - date.getMonth());
+}
+
+function repoIsRecentlyMaintained(meta) {
+  return meta && meta.updated_at && monthsSince(meta.updated_at) <= 18;
+}
+
+function enrichWithGitHubMeta(item, meta, intro) {
+  var repoName = meta.full_name || item.title;
+  var description = meta.description || item.summary || '';
+  var maintained = repoIsRecentlyMaintained(meta) ? '仍在维护' : '最近维护信号偏弱';
+  item.title = repoName + (description ? '：' + compactText(description, 80) : '');
+  item.summary = compactText((intro ? intro + ' ' : '') +
+    '用途：' + (description || '仓库描述有限，需要打开项目页确认。') +
+    ' 热度：' + compactNumber(meta.stargazers_count) + ' stars，' + compactNumber(meta.forks_count) + ' forks。' +
+    ' 维护：GitHub 最近更新 ' + dateTimeText(meta.updated_at) + '，' + maintained + '。', 700);
+  item.link = meta.html_url || item.link;
+  item.published = meta.updated_at || item.published;
+  item.categoryOverride = 'github';
+  return item;
+}
+
+function enrichDirectGitHubItem(item) {
+  var repo = extractGitHubRepo(item.link);
+  if (!repo) return Promise.resolve(item);
+  return fetchJsonWithTimeout('https://api.github.com/repos/' + encodeURIComponent(repo.owner) + '/' + encodeURIComponent(repo.repo)).then(function (meta) {
+    return enrichWithGitHubMeta(item, meta, 'GitHub 项目实用性检查。');
+  }).catch(function () {
+    item.categoryOverride = 'github';
+    return item;
+  });
+}
+
+function parseNextData(html) {
+  var match = /<script[^>]+id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i.exec(html);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[1]);
+  } catch (err) {
+    return null;
+  }
+}
+
+function collectHelloGithubProjects(node, categoryName, out) {
+  var key;
+  var i;
+  var nextCategory = categoryName;
+  if (!node) return;
+  if (node.category_name) nextCategory = node.category_name;
+  if (Array.isArray(node)) {
+    for (i = 0; i < node.length; i++) collectHelloGithubProjects(node[i], nextCategory, out);
+    return;
+  }
+  if (typeof node !== 'object') return;
+  if (node.github_url && node.name) {
+    out.push({
+      name: node.name,
+      fullName: node.full_name || '',
+      description: node.description || node.description_en || '',
+      githubUrl: node.github_url,
+      stars: parseInt(node.stars || 0, 10),
+      forks: parseInt(node.forks || 0, 10),
+      watch: parseInt(node.watch || 0, 10),
+      publishAt: node.publish_at || '',
+      categoryName: nextCategory || ''
+    });
+  }
+  for (key in node) {
+    if (Object.prototype.hasOwnProperty.call(node, key)) {
+      collectHelloGithubProjects(node[key], nextCategory, out);
+    }
+  }
+}
+
+function helloGithubProjectScore(project) {
+  var text = project.name + ' ' + project.description + ' ' + project.categoryName;
+  var score = 0;
+  if (project.categoryName === '人工智能') score += 25;
+  if (/人工智能|AI|agent|智能体|LLM|大模型|Claude|Codex|Cursor|Gemini|ChatGPT|编程助手|Token|模型|workflow/i.test(text)) score += 10;
+  if (/工具|助手|工作流|coding|code|price|usage|memory|desktop|CLI/i.test(text)) score += 3;
+  score += Math.min(6, Math.log(Math.max(project.stars, 1)) / Math.log(10));
+  return score;
+}
+
+function enrichHelloGithubItem(item) {
+  return fetchWithTimeout(item.link).then(function (html) {
+    var data = parseNextData(html);
+    var projects = [];
+    var best;
+    var repo;
+    if (!data) return item;
+    collectHelloGithubProjects(data, '', projects);
+    projects = projects.sort(function (a, b) {
+      return helloGithubProjectScore(b) - helloGithubProjectScore(a);
+    });
+    best = projects[0];
+    if (!best) return item;
+    repo = extractGitHubRepo(best.githubUrl);
+    item.title = best.name + '：' + compactText(best.description, 90);
+    item.summary = compactText('HelloGitHub ' + (best.categoryName || '开源') + '项目。用途：' + best.description +
+      ' 热度：' + compactNumber(best.stars) + ' stars，' + compactNumber(best.forks) + ' forks。来源发布时间：' + dateTimeText(best.publishAt) + '。', 700);
+    item.link = best.githubUrl;
+    item.published = best.publishAt || item.published;
+    item.categoryOverride = 'github';
+    if (!repo) return item;
+    return fetchJsonWithTimeout('https://api.github.com/repos/' + encodeURIComponent(repo.owner) + '/' + encodeURIComponent(repo.repo)).then(function (meta) {
+      return enrichWithGitHubMeta(item, meta, 'HelloGitHub 推荐项目，已用 GitHub 元数据复核。');
+    }).catch(function () {
+      return item;
+    });
+  }).catch(function () {
+    item.categoryOverride = 'github';
+    return item;
+  });
+}
+
+function enrichGitHubItems(items) {
+  var pending = [];
+  var i;
+  for (i = 0; i < items.length; i++) {
+    if (items[i].sourceId === 'hellogithub') {
+      pending.push(enrichHelloGithubItem(items[i]));
+    } else if (rawCategory(items[i]) === 'github' || extractGitHubRepo(items[i].link)) {
+      pending.push(enrichDirectGitHubItem(items[i]));
+    } else {
+      pending.push(Promise.resolve(items[i]));
+    }
+  }
+  return Promise.all(pending);
+}
+
 function parseRss(xml, source, iso) {
   var items = [];
   var itemRegex = /<item\b[\s\S]*?<\/item>/gi;
@@ -267,11 +440,11 @@ function parseTldrHtml(html, source, iso) {
       link = absoluteUrl(mdMatch[1], source.url);
       title = stripTags(chunk.split('\n')[0] || '');
     }
-    var dateMatch = /(20\d\d-\d\d-\d\d(?:T[^\s<]*)?)/.exec(chunk);
+    var dateMatch = /(20\d\d-\d\d-\d\d(?:T[^\s<"'>]*)?)/.exec(chunk);
     var date = dateMatch ? dateMatch[1] : '';
     if (!title || !link || !sameDay(date, iso)) continue;
     var afterTitle = chunk.replace(/^[\s\S]*?<\/a>/i, ' ').replace(/^[^\n]*\n/, ' ');
-    var summary = compactText(afterTitle.replace(date, ' '), 560);
+    var summary = compactText(afterTitle.replace(/20\d\d-\d\d-\d\d(?:T[^\s<"'>]*)?/g, ' '), 560);
     if (/sponsor/i.test(title + ' ' + summary)) continue;
     items.push(makeItem(source, title, summary, link, date));
   }
@@ -306,7 +479,8 @@ function makeItem(source, title, summary, link, date) {
     title: compactText(title, 180),
     summary: compactText(summary, 700),
     link: link,
-    published: date || ''
+    published: date || '',
+    categoryOverride: source.category || ''
   };
 }
 
@@ -320,6 +494,8 @@ function parseSourceWithFallback(html, source, iso) {
   var parsed = parseSource(html, source, iso);
   var previousIso;
   var previous;
+  var maxFallbackDays;
+  var i;
   if (parsed.length > 0) {
     return {
       items: parsed,
@@ -327,20 +503,88 @@ function parseSourceWithFallback(html, source, iso) {
       fallbackDate: ''
     };
   }
-  previousIso = shiftISO(iso, -1);
-  previous = parseSource(html, source, previousIso);
-  if (previous.length > 0) {
-    return {
-      items: previous,
-      status: 'previous_day',
-      fallbackDate: previousIso
-    };
+  maxFallbackDays = Math.max(1, parseInt(source.fallbackDays || '1', 10));
+  for (i = 1; i <= maxFallbackDays; i++) {
+    previousIso = shiftISO(iso, -i);
+    previous = parseSource(html, source, previousIso);
+    if (previous.length > 0) {
+      return {
+        items: previous,
+        status: 'previous_day',
+        fallbackDate: previousIso
+      };
+    }
   }
   return {
     items: parsed,
     status: 'no_today',
     fallbackDate: ''
   };
+}
+
+function rawCategory(item) {
+  var text = item.sourceName + ' ' + item.title + ' ' + item.summary + ' ' + item.link;
+  if (item.categoryOverride) return item.categoryOverride;
+  if (/github|hellogithub/i.test(item.sourceName + ' ' + item.link)) return 'github';
+  if (/融资|募资|funding|fundraise|raised|raises|valuation|估值|ipo|收购|acquisition/i.test(text)) return 'fund';
+  if (/论文|研究|benchmark|模型训练|开源模型|arxiv|paper|research|technical report|eval|inference|training/i.test(text)) return 'research';
+  if (/product|launch|app|tool|agent|workflow|automation|copilot|cursor|chatgpt|claude|gemini|产品|工具|发布|上线|工作流/i.test(text)) return 'app';
+  return 'news';
+}
+
+function hasCategory(items, categoryId) {
+  var i;
+  for (i = 0; i < items.length; i++) {
+    if (rawCategory(items[i]) === categoryId) return true;
+  }
+  return false;
+}
+
+function hasSource(items, sourceId) {
+  var i;
+  for (i = 0; i < items.length; i++) {
+    if (items[i].sourceId === sourceId) return true;
+  }
+  return false;
+}
+
+function pushCategoryCandidate(selected, scored, categoryId) {
+  var i;
+  var candidate;
+  for (i = 0; i < scored.length; i++) {
+    candidate = scored[i].item;
+    if (selected.indexOf(candidate) !== -1) continue;
+    if (rawCategory(candidate) !== categoryId) continue;
+    selected.push(candidate);
+    return true;
+  }
+  return false;
+}
+
+function pushSourceCandidate(selected, scored, sourceId) {
+  var i;
+  var candidate;
+  for (i = 0; i < scored.length; i++) {
+    candidate = scored[i].item;
+    if (selected.indexOf(candidate) !== -1) continue;
+    if (candidate.sourceId !== sourceId) continue;
+    selected.push(candidate);
+    return true;
+  }
+  return false;
+}
+
+function ensureRequiredCategoryCandidates(selected, scored) {
+  var i;
+  for (i = 0; i < REQUIRED_CATEGORY_IDS.length; i++) {
+    if (!hasCategory(selected, REQUIRED_CATEGORY_IDS[i])) {
+      pushCategoryCandidate(selected, scored, REQUIRED_CATEGORY_IDS[i]);
+    }
+  }
+  if (!hasSource(selected, 'hellogithub')) {
+    pushSourceCandidate(selected, scored, 'hellogithub');
+  }
+  return selected;
 }
 
 function dedupe(items) {
@@ -374,7 +618,8 @@ function rankItems(items) {
     if (highWords.test(text)) score += 3;
     if (/OpenAI|Google|DeepMind|Microsoft|GitHub|Cursor|Zapier|Canva|VentureBeat|TechCrunch|Decoder/i.test(items[i].sourceName)) score += 1;
     if (/official|blog|docs|changelog|release|model|tool|product|agent|automation|workflow|pricing|privacy|security/i.test(text)) score += 1;
-    if (/funding|raises|valuation|stock|shares/i.test(text) && !/product|launch|acquire|acquisition|partnership|integrat/i.test(text)) score -= 2;
+    if (/funding|raises|valuation|stock|shares/i.test(text) && !/product|launch|acquire|acquisition|partnership|integrat/i.test(text)) score -= 1;
+    if (rawCategory(items[i]) === 'fund' || rawCategory(items[i]) === 'research' || rawCategory(items[i]) === 'github') score += 1;
     scored.push({ item: items[i], score: score });
   }
   scored = scored.sort(function (a, b) {
@@ -388,14 +633,23 @@ function rankItems(items) {
     if (current >= 3) continue;
     selected.push(scored[i].item);
     sourceCounts[sourceId] = current + 1;
-    if (selected.length >= MAX_ITEMS) return selected;
+    if (selected.length >= MAX_ITEMS) return ensureRequiredCategoryCandidates(selected, scored);
   }
   for (i = 0; i < scored.length; i++) {
     if (selected.indexOf(scored[i].item) !== -1) continue;
     selected.push(scored[i].item);
-    if (selected.length >= MAX_ITEMS) return selected;
+    if (selected.length >= MAX_ITEMS) return ensureRequiredCategoryCandidates(selected, scored);
   }
-  return selected;
+  return ensureRequiredCategoryCandidates(selected, scored);
+}
+
+function categoryLabelForItem(item, index) {
+  var category = rawCategory(item);
+  if (category === 'github') return 'GitHub';
+  if (category === 'fund') return '融资';
+  if (category === 'research') return '研究';
+  if (category === 'app') return '产品';
+  return index < 2 ? '头条' : '快讯';
 }
 
 function fallbackDigest(items) {
@@ -407,11 +661,50 @@ function fallbackDigest(items) {
       titleZh: items[i].title,
       summaryZh: items[i].summary || '原始来源没有提供足够摘要，建议点开原文查看细节。',
       insightZh: '对轻度 AI 工作流用户：先判断这条新闻是否会影响你正在用的工具、价格、权限或自动化能力。如果会，记录一个可测试的小动作；如果不会，了解趋势即可，不必立刻追新。',
-      category: i < 2 ? '头条' : '快讯',
+      category: categoryLabelForItem(items[i], i),
       importance: i < 2 ? 'high' : 'normal'
     });
   }
   return { items: out };
+}
+
+function hasDigestCategory(items, digestItems, categoryId) {
+  var i;
+  for (i = 0; i < items.length; i++) {
+    if (classifyDigestItem(items[i], digestItems[i] || {}) === categoryId) return true;
+  }
+  return false;
+}
+
+function ensureRequiredDigestCategories(selectedItems, selectedDigest, allItems) {
+  var i;
+  var j;
+  var categoryId;
+  var item;
+  var alreadySelected = {};
+  for (i = 0; i < selectedItems.length; i++) alreadySelected[selectedItems[i].id] = true;
+  for (i = 0; i < REQUIRED_CATEGORY_IDS.length; i++) {
+    categoryId = REQUIRED_CATEGORY_IDS[i];
+    if (hasDigestCategory(selectedItems, selectedDigest, categoryId)) continue;
+    for (j = 0; j < allItems.length; j++) {
+      item = allItems[j];
+      if (alreadySelected[item.id] || rawCategory(item) !== categoryId) continue;
+      selectedItems.push(item);
+      selectedDigest.push(fallbackDigest([item]).items[0]);
+      alreadySelected[item.id] = true;
+      break;
+    }
+  }
+  if (!hasSource(selectedItems, 'hellogithub')) {
+    for (j = 0; j < allItems.length; j++) {
+      item = allItems[j];
+      if (alreadySelected[item.id] || item.sourceId !== 'hellogithub') continue;
+      selectedItems.push(item);
+      selectedDigest.push(fallbackDigest([item]).items[0]);
+      alreadySelected[item.id] = true;
+      break;
+    }
+  }
 }
 
 function alignDigestItems(items, digest) {
@@ -440,6 +733,7 @@ function alignDigestItems(items, digest) {
       digest: fallbackDigest(items)
     };
   }
+  ensureRequiredDigestCategories(selectedItems, selectedDigest, items);
   return {
     items: selectedItems,
     digest: { items: selectedDigest }
@@ -465,6 +759,7 @@ function runCodexDigest(items, iso) {
     '基于 stdin JSON 生成最多 ' + MAX_ITEMS + ' 条中文日报。',
     '严格按 editorialRules 筛选：优先消费者 AI、AI 工作流、工具选择、成本/权限/风险变化；排除小 bug fix、SDK patch、纯 hype、纯融资和无实际影响的 benchmark。',
     '候选新闻可能包含前一天内容，这是正常回退；可以总结，但不要把前一天内容写成今天刚发布。',
+    'GitHub/HelloGitHub 候选已包含项目用途、stars/forks 和最近更新时间；摘要必须说明它解决什么问题、是否仍在维护、为什么值得或不值得轻度 AI 工作流用户尝试。',
     '如果候选不足，不要硬凑数量；只保留真正会改变实际使用方式的信息。',
     '每条必须原样返回候选中的唯一 id，字段名为 itemId；不要改写、猜测或省略 itemId。',
     '每条包含：itemId、中文标题、2-3 句中文摘要、对轻度 AI 工作流用户的实用解读、分类、重要性。',
@@ -542,6 +837,8 @@ var CATEGORY_CONFIG = [
 function classifyDigestItem(raw, digestItem) {
   var category = digestItem.category || '';
   var text = raw.sourceName + ' ' + raw.title + ' ' + raw.summary + ' ' + category;
+  var categoryOverride = rawCategory(raw);
+  if (categoryOverride === 'github' || categoryOverride === 'fund' || categoryOverride === 'research') return categoryOverride;
   if (/github/i.test(raw.sourceName + ' ' + raw.link)) return 'github';
   if (/融资|募资|funding|fundraise|valuation|估值|ipo|收购|acquisition/i.test(text)) return 'fund';
   if (category === '研究' || /论文|研究|benchmark|模型训练|开源模型|arxiv/i.test(text)) return 'research';
@@ -559,8 +856,9 @@ function renderCard(raw, digestItem, index, categoryId) {
     '<div class="card-row"><label class="card-chk"><input type="checkbox" aria-label="选择此条新闻"></label><div class="card-body-wrap">' +
     '<a class="card-lnk" href="' + escapeHtml(raw.link) + '" target="_blank" rel="noopener">' +
     '<div class="card-top"><div class="card-headline">' + escapeHtml(title) + '</div><span class="badge b-' + categoryId + '">' + escapeHtml(badge) + '</span></div>' +
+    '<div class="card-published">发布时间：' + escapeHtml(dateTimeText(raw.published)) + '</div>' +
     '<div class="card-text">' + escapeHtml(summary) + '</div></a>' +
-    '<div class="card-ft"><span class="card-src">' + escapeHtml(raw.sourceName) + '</span><span class="card-time">· 原文</span><a class="card-orig" href="' + escapeHtml(raw.link) + '" target="_blank" rel="noopener">阅读原文</a></div>' +
+    '<div class="card-ft"><span class="card-src">' + escapeHtml(raw.sourceName) + '</span><a class="card-orig" href="' + escapeHtml(raw.link) + '" target="_blank" rel="noopener">阅读原文</a></div>' +
     '</div></div><div class="insight"><div class="ins-lbl">AI 解读</div><div class="ins-txt">' + escapeHtml(insight) + '</div></div></div>';
 }
 
@@ -809,7 +1107,9 @@ function main() {
   });
 
   Promise.all(pending).then(function () {
-    var items = rankItems(dedupe(allItems));
+    return enrichGitHubItems(dedupe(allItems));
+  }).then(function (enrichedItems) {
+    var items = rankItems(enrichedItems);
     if (items.length === 0) {
       return { items: items, digest: fallbackDigest(items), codexError: '' };
     }
