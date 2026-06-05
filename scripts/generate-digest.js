@@ -401,6 +401,7 @@ function fallbackDigest(items) {
   var i;
   for (i = 0; i < items.length; i++) {
     out.push({
+      itemId: items[i].id,
       titleZh: items[i].title,
       summaryZh: items[i].summary || '原始来源没有提供足够摘要，建议点开原文查看细节。',
       insightZh: '对轻度 AI 工作流用户：先判断这条新闻是否会影响你正在用的工具、价格、权限或自动化能力。如果会，记录一个可测试的小动作；如果不会，了解趋势即可，不必立刻追新。',
@@ -409,6 +410,38 @@ function fallbackDigest(items) {
     });
   }
   return { items: out };
+}
+
+function alignDigestItems(items, digest) {
+  var rawById = {};
+  var selectedItems = [];
+  var selectedDigest = [];
+  var seen = {};
+  var i;
+  var entry;
+  var raw;
+  for (i = 0; i < items.length; i++) {
+    rawById[items[i].id] = items[i];
+  }
+  for (i = 0; i < digest.items.length; i++) {
+    entry = digest.items[i];
+    raw = rawById[entry.itemId];
+    if (!raw || seen[entry.itemId]) continue;
+    if (!entry.titleZh || !entry.summaryZh || !entry.insightZh) continue;
+    seen[entry.itemId] = true;
+    selectedItems.push(raw);
+    selectedDigest.push(entry);
+  }
+  if (selectedItems.length === 0) {
+    return {
+      items: items,
+      digest: fallbackDigest(items)
+    };
+  }
+  return {
+    items: selectedItems,
+    digest: { items: selectedDigest }
+  };
 }
 
 function runCodexDigest(items, iso) {
@@ -431,7 +464,8 @@ function runCodexDigest(items, iso) {
     '严格按 editorialRules 筛选：优先消费者 AI、AI 工作流、工具选择、成本/权限/风险变化；排除小 bug fix、SDK patch、纯 hype、纯融资和无实际影响的 benchmark。',
     '候选新闻可能包含前一天内容，这是正常回退；可以总结，但不要把前一天内容写成今天刚发布。',
     '如果候选不足，不要硬凑数量；只保留真正会改变实际使用方式的信息。',
-    '每条包含：中文标题、2-3 句中文摘要、对轻度 AI 工作流用户的实用解读、分类、重要性。',
+    '每条必须原样返回候选中的唯一 id，字段名为 itemId；不要改写、猜测或省略 itemId。',
+    '每条包含：itemId、中文标题、2-3 句中文摘要、对轻度 AI 工作流用户的实用解读、分类、重要性。',
     '实用解读必须给明确今日判断，例如：可以试用、值得关注、暂不急用、适合个人 workflow、需要谨慎、先观察。',
     '不要编造原文没有的信息；如果信息不足，明确写信息有限。',
     '只输出符合 schema 的 JSON。'
@@ -667,7 +701,8 @@ function main() {
       return { items: items, digest: fallbackDigest(items), codexError: '' };
     }
     return runCodexDigest(items, iso).then(function (digest) {
-      return { items: items, digest: digest, codexError: '' };
+      var aligned = alignDigestItems(items, digest);
+      return { items: aligned.items, digest: aligned.digest, codexError: '' };
     }).catch(function (err) {
       return { items: items, digest: fallbackDigest(items), codexError: err.message };
     });

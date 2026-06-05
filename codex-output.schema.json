@@ -9,8 +9,9 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["titleZh", "summaryZh", "insightZh", "category", "importance"],
+        "required": ["itemId", "titleZh", "summaryZh", "insightZh", "category", "importance"],
         "properties": {
+          "itemId": { "type": "string" },
           "titleZh": { "type": "string" },
           "summaryZh": { "type": "string" },
           "insightZh": { "type": "string" },
