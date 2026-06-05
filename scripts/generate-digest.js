@@ -31,6 +31,12 @@ function todayISO() {
   return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
 }
 
+function shiftISO(iso, days) {
+  var d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + days);
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+
 function dateZh(iso) {
   var parts = iso.split('-');
   return parts[0] + '年' + parseInt(parts[1], 10) + '月' + parseInt(parts[2], 10) + '日';
@@ -308,6 +314,33 @@ function parseSource(html, source, iso) {
   return parseGenericHtml(html, source, iso);
 }
 
+function parseSourceWithFallback(html, source, iso) {
+  var parsed = parseSource(html, source, iso);
+  var previousIso;
+  var previous;
+  if (parsed.length > 0) {
+    return {
+      items: parsed,
+      status: 'success',
+      fallbackDate: ''
+    };
+  }
+  previousIso = shiftISO(iso, -1);
+  previous = parseSource(html, source, previousIso);
+  if (previous.length > 0) {
+    return {
+      items: previous,
+      status: 'previous_day',
+      fallbackDate: previousIso
+    };
+  }
+  return {
+    items: parsed,
+    status: 'no_today',
+    fallbackDate: ''
+  };
+}
+
 function dedupe(items) {
   var out = [];
   var seen = {};
@@ -396,6 +429,7 @@ function runCodexDigest(items, iso) {
     '你是 AI Daily Digest 的中文编辑。',
     '基于 stdin JSON 生成最多 ' + MAX_ITEMS + ' 条中文日报。',
     '严格按 editorialRules 筛选：优先消费者 AI、AI 工作流、工具选择、成本/权限/风险变化；排除小 bug fix、SDK patch、纯 hype、纯融资和无实际影响的 benchmark。',
+    '候选新闻可能包含前一天内容，这是正常回退；可以总结，但不要把前一天内容写成今天刚发布。',
     '如果候选不足，不要硬凑数量；只保留真正会改变实际使用方式的信息。',
     '每条包含：中文标题、2-3 句中文摘要、对轻度 AI 工作流用户的实用解读、分类、重要性。',
     '实用解读必须给明确今日判断，例如：可以试用、值得关注、暂不急用、适合个人 workflow、需要谨慎、先观察。',
@@ -447,6 +481,7 @@ function runCodexDigest(items, iso) {
 
 function statusLabel(status) {
   if (status === 'success') return '成功';
+  if (status === 'previous_day') return '昨日内容';
   if (status === 'no_today') return '无当日内容';
   if (status === 'fetch_failed') return '抓取失败';
   if (status === 'parse_failed') return '解析失败';
@@ -455,6 +490,7 @@ function statusLabel(status) {
 
 function sourceStatusClass(status, core) {
   if (status === 'success') return 'ok';
+  if (status === 'previous_day') return 'warn';
   if (core && (status === 'fetch_failed' || status === 'parse_failed')) return 'core-fail';
   return 'warn';
 }
@@ -487,6 +523,7 @@ function renderSources(sources) {
     html.push('<div class="source-row ' + sourceStatusClass(sources[i].status, sources[i].core) + '">');
     html.push('<div><strong>' + escapeHtml(sources[i].name) + '</strong>' + (sources[i].core ? '<span class="core-tag">核心源</span>' : '') + '</div>');
     html.push('<span>' + statusLabel(sources[i].status) + (sources[i].count ? ' · ' + sources[i].count + '条' : '') + '</span>');
+    if (sources[i].fallbackDate) html.push('<small>使用 ' + escapeHtml(dateZh(sources[i].fallbackDate)) + ' 内容</small>');
     if (sources[i].error) html.push('<small>' + escapeHtml(compactText(sources[i].error, 160)) + '</small>');
     html.push('</div>');
   }
@@ -502,7 +539,7 @@ function renderHtml(data) {
 '<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">\n' +
 '<style>\n' +
 ':root{--bg:#f5f4f0;--surface:#fff;--surface2:#f9f8f5;--border:rgba(0,0,0,.09);--border-h:rgba(0,0,0,.2);--text:#181614;--text2:#3d3a36;--text3:#888480;--purple:#4f3fcf;--purple-bg:rgba(79,63,207,.07);--green:#1a7a4e;--green-bg:rgba(26,122,78,.07);--amber:#92580a;--amber-bg:rgba(146,88,10,.08);--red:#b02020;--red-bg:rgba(176,32,32,.07);--insight-bg:#f0ede6;--insight-bdr:#ddd8ce;--selected-bg:#fffbeb;--selected-bdr:#d4a017;--font:\'Noto Sans SC\',\'PingFang SC\',\'Microsoft YaHei\',sans-serif;--mono:\'Space Mono\',\'Courier New\',monospace;}\n' +
-'*,*:before,*:after{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:16px;line-height:1.75;-webkit-font-smoothing:antialiased}.page{max-width:820px;margin:0 auto;padding:0 1.75rem 8rem}.masthead{padding:3rem 0 2rem;border-bottom:1.5px solid var(--border);margin-bottom:1.25rem;position:relative;overflow:hidden}.masthead:after{content:\'AI\';position:absolute;right:-1rem;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:190px;font-weight:700;color:rgba(79,63,207,.04);line-height:1}.masthead-tag{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:.5rem}.masthead-title{font-size:clamp(34px,6vw,52px);font-weight:700;line-height:1.05;margin-bottom:.35rem}.masthead-title span{color:var(--purple)}.masthead-sub{font-size:13px;color:var(--text3);margin-bottom:.9rem}.masthead-sources{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}.masthead-date,.source-pill{font-family:var(--mono);font-size:10px;color:var(--text3)}.source-pill{padding:3px 9px;border-radius:20px;border:1px solid var(--border);text-decoration:none}.status-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:0 0 2rem;padding:1rem 1.1rem}.status-head{display:flex;justify-content:space-between;gap:1rem;align-items:center;border-bottom:1px solid var(--border);padding-bottom:.75rem;margin-bottom:.75rem}.status-title{font-size:14px;font-weight:700}.status-badge{font-family:var(--mono);font-size:10px;border-radius:20px;padding:4px 10px;background:var(--purple-bg);color:var(--purple)}.status-badge.fetch_failed,.status-badge.parse_failed{background:var(--red-bg);color:var(--red)}.status-badge.no_today{background:var(--amber-bg);color:var(--amber)}.source-row{display:grid;grid-template-columns:1fr auto;gap:.35rem 1rem;font-size:12px;padding:.45rem 0;border-bottom:1px solid rgba(0,0,0,.05)}.source-row:last-child{border-bottom:0}.source-row small{grid-column:1/-1;color:var(--text3)}.source-row.ok span{color:var(--green)}.source-row.warn span{color:var(--amber)}.source-row.core-fail{background:var(--red-bg);margin:.25rem -.5rem;padding:.5rem;border-radius:8px}.source-row.core-fail span{color:var(--red);font-weight:700}.core-tag{font-family:var(--mono);font-size:9px;margin-left:.45rem;color:var(--red)}.stat-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:2.5rem}.stat-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.9rem 1.1rem}.stat-num{font-family:var(--mono);font-size:22px;font-weight:700;line-height:1;margin-bottom:4px}.stat-label{font-size:12px;color:var(--text3)}.section-header{display:flex;align-items:center;gap:10px;margin:2.25rem 0 1.1rem}.section-icon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;background:var(--purple-bg)}.section-title{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text3)}.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:.9rem;overflow:hidden;transition:border-color .2s,box-shadow .2s;position:relative}.card:hover{border-color:var(--border-h);box-shadow:0 2px 14px rgba(0,0,0,.07)}.card.featured{border-left:3px solid var(--purple)}.card.selected{background:var(--selected-bg);border-color:var(--selected-bdr)}.card-check{position:absolute;top:1rem;right:1rem;z-index:2}.card-check input{width:18px;height:18px;accent-color:var(--purple);cursor:pointer}.card-link-area{display:block;text-decoration:none;color:inherit;padding:1.2rem 3rem 0 1.4rem;transition:background .15s}.card-link-area:hover{background:var(--surface2)}.card-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:.5rem}.card-headline{font-size:16px;font-weight:700;line-height:1.5;flex:1}.card.featured .card-headline{color:var(--purple)}.badge{font-family:var(--mono);font-size:9px;letter-spacing:.06em;padding:3px 9px;border-radius:20px;white-space:nowrap;background:var(--purple-bg);color:var(--purple);margin-top:2px}.card-body{font-size:14.5px;color:var(--text2);line-height:1.8;padding:0 3rem .85rem 1.4rem}.card-footer-bar{display:flex;align-items:center;gap:8px;padding:.55rem 1.4rem .75rem;border-top:1px solid var(--border)}.card-source,.card-readtime{font-family:var(--mono);font-size:10px;color:var(--text3)}.card-orig{font-family:var(--mono);font-size:10px;color:var(--purple);text-decoration:none;margin-left:auto;opacity:.75}.insight{background:var(--insight-bg);border-top:1px solid var(--insight-bdr);padding:.9rem 1.4rem 1rem}.insight-label{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--purple);margin-bottom:.35rem}.insight-text{font-size:13.5px;color:var(--text2);line-height:1.8}.empty-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.3rem;color:var(--text2)}#float-bar{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(80px);background:var(--text);color:#fff;border-radius:40px;padding:.65rem 1.4rem;display:flex;align-items:center;gap:1rem;font-family:var(--mono);font-size:11px;white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.25);transition:transform .3s ease,opacity .3s;opacity:0;pointer-events:none;z-index:100}#float-bar.visible{transform:translateX(-50%) translateY(0);opacity:1;pointer-events:all}#float-count{font-weight:700;color:#9b8fff}.float-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:20px;padding:.35rem .9rem;font-family:var(--mono);font-size:10px;cursor:pointer}.float-btn.primary{background:var(--purple);border-color:var(--purple)}.footer{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:.5rem;flex-wrap:wrap}.footer-text,.footer-link{font-family:var(--mono);font-size:10px;color:var(--text3)}.footer-link{color:var(--purple);text-decoration:none}@media(max-width:600px){.page{padding:0 1rem 6rem}.masthead-title{font-size:30px}.stat-strip{grid-template-columns:1fr}#float-bar{width:calc(100% - 2rem);justify-content:center;gap:.5rem}.float-btn{padding:.35rem .55rem}.card-footer-bar{align-items:flex-start;flex-direction:column}.card-orig{margin-left:0}}\n' +
+'*,*:before,*:after{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:16px;line-height:1.75;-webkit-font-smoothing:antialiased}.page{max-width:820px;margin:0 auto;padding:0 1.75rem 8rem}.masthead{padding:3rem 0 2rem;border-bottom:1.5px solid var(--border);margin-bottom:1.25rem;position:relative;overflow:hidden}.masthead:after{content:\'AI\';position:absolute;right:-1rem;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:190px;font-weight:700;color:rgba(79,63,207,.04);line-height:1}.masthead-tag{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:.5rem}.masthead-title{font-size:clamp(34px,6vw,52px);font-weight:700;line-height:1.05;margin-bottom:.35rem}.masthead-title span{color:var(--purple)}.masthead-sub{font-size:13px;color:var(--text3);margin-bottom:.9rem}.masthead-sources{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}.masthead-date,.source-pill{font-family:var(--mono);font-size:10px;color:var(--text3)}.source-pill{padding:3px 9px;border-radius:20px;border:1px solid var(--border);text-decoration:none}.status-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:0 0 2rem;padding:1rem 1.1rem}.status-head{display:flex;justify-content:space-between;gap:1rem;align-items:center;border-bottom:1px solid var(--border);padding-bottom:.75rem;margin-bottom:.75rem}.status-title{font-size:14px;font-weight:700}.status-badge{font-family:var(--mono);font-size:10px;border-radius:20px;padding:4px 10px;background:var(--purple-bg);color:var(--purple)}.status-badge.fetch_failed,.status-badge.parse_failed{background:var(--red-bg);color:var(--red)}.status-badge.no_today,.status-badge.previous_day{background:var(--amber-bg);color:var(--amber)}.source-row{display:grid;grid-template-columns:1fr auto;gap:.35rem 1rem;font-size:12px;padding:.45rem 0;border-bottom:1px solid rgba(0,0,0,.05)}.source-row:last-child{border-bottom:0}.source-row small{grid-column:1/-1;color:var(--text3)}.source-row.ok span{color:var(--green)}.source-row.warn span{color:var(--amber)}.source-row.core-fail{background:var(--red-bg);margin:.25rem -.5rem;padding:.5rem;border-radius:8px}.source-row.core-fail span{color:var(--red);font-weight:700}.core-tag{font-family:var(--mono);font-size:9px;margin-left:.45rem;color:var(--red)}.stat-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:2.5rem}.stat-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.9rem 1.1rem}.stat-num{font-family:var(--mono);font-size:22px;font-weight:700;line-height:1;margin-bottom:4px}.stat-label{font-size:12px;color:var(--text3)}.section-header{display:flex;align-items:center;gap:10px;margin:2.25rem 0 1.1rem}.section-icon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;background:var(--purple-bg)}.section-title{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text3)}.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:.9rem;overflow:hidden;transition:border-color .2s,box-shadow .2s;position:relative}.card:hover{border-color:var(--border-h);box-shadow:0 2px 14px rgba(0,0,0,.07)}.card.featured{border-left:3px solid var(--purple)}.card.selected{background:var(--selected-bg);border-color:var(--selected-bdr)}.card-check{position:absolute;top:1rem;right:1rem;z-index:2}.card-check input{width:18px;height:18px;accent-color:var(--purple);cursor:pointer}.card-link-area{display:block;text-decoration:none;color:inherit;padding:1.2rem 3rem 0 1.4rem;transition:background .15s}.card-link-area:hover{background:var(--surface2)}.card-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:.5rem}.card-headline{font-size:16px;font-weight:700;line-height:1.5;flex:1}.card.featured .card-headline{color:var(--purple)}.badge{font-family:var(--mono);font-size:9px;letter-spacing:.06em;padding:3px 9px;border-radius:20px;white-space:nowrap;background:var(--purple-bg);color:var(--purple);margin-top:2px}.card-body{font-size:14.5px;color:var(--text2);line-height:1.8;padding:0 3rem .85rem 1.4rem}.card-footer-bar{display:flex;align-items:center;gap:8px;padding:.55rem 1.4rem .75rem;border-top:1px solid var(--border)}.card-source,.card-readtime{font-family:var(--mono);font-size:10px;color:var(--text3)}.card-orig{font-family:var(--mono);font-size:10px;color:var(--purple);text-decoration:none;margin-left:auto;opacity:.75}.insight{background:var(--insight-bg);border-top:1px solid var(--insight-bdr);padding:.9rem 1.4rem 1rem}.insight-label{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--purple);margin-bottom:.35rem}.insight-text{font-size:13.5px;color:var(--text2);line-height:1.8}.empty-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.3rem;color:var(--text2)}#float-bar{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(80px);background:var(--text);color:#fff;border-radius:40px;padding:.65rem 1.4rem;display:flex;align-items:center;gap:1rem;font-family:var(--mono);font-size:11px;white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.25);transition:transform .3s ease,opacity .3s;opacity:0;pointer-events:none;z-index:100}#float-bar.visible{transform:translateX(-50%) translateY(0);opacity:1;pointer-events:all}#float-count{font-weight:700;color:#9b8fff}.float-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:20px;padding:.35rem .9rem;font-family:var(--mono);font-size:10px;cursor:pointer}.float-btn.primary{background:var(--purple);border-color:var(--purple)}.footer{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:.5rem;flex-wrap:wrap}.footer-text,.footer-link{font-family:var(--mono);font-size:10px;color:var(--text3)}.footer-link{color:var(--purple);text-decoration:none}@media(max-width:600px){.page{padding:0 1rem 6rem}.masthead-title{font-size:30px}.stat-strip{grid-template-columns:1fr}#float-bar{width:calc(100% - 2rem);justify-content:center;gap:.5rem}.float-btn{padding:.35rem .55rem}.card-footer-bar{align-items:flex-start;flex-direction:column}.card-orig{margin-left:0}}\n' +
 '</style>\n</head>\n<body>\n<div class="page">\n<header class="masthead"><span class="masthead-tag">AI Daily Digest · MVP First</span><h1 class="masthead-title">AI <span>日报</span></h1><p class="masthead-sub">本地抓取 · Codex 中文摘要 · 固定 GitHub Pages 页面</p><div class="masthead-sources"><span class="masthead-date">' + escapeHtml(dateZh(data.date)) + '</span><a class="source-pill" href="https://ai.tldr.tech/" target="_blank" rel="noopener">TLDR AI ↗</a><a class="source-pill" href="https://www.therundown.ai/" target="_blank" rel="noopener">The Rundown AI ↗</a></div></header>\n' +
 '<div class="status-panel"><div class="status-head"><div><div class="status-title">抓取状态</div><div class="masthead-sub">更新时间：' + escapeHtml(data.generatedAt) + (data.codexError ? ' · Codex 摘要失败，已用本地降级摘要' : '') + '</div></div><span class="status-badge ' + escapeHtml(data.overallStatus) + '">' + escapeHtml(status) + '</span></div>' + renderSources(data.sourceResults) + '</div>\n' +
 '<div class="stat-strip"><div class="stat-box"><div class="stat-num">' + data.items.length + '</div><div class="stat-label">精选新闻</div></div><div class="stat-box"><div class="stat-num">' + data.sourceResults.length + '</div><div class="stat-label">信息来源</div></div><div class="stat-box"><div class="stat-num">~' + Math.max(3, data.items.length * 2) + ' 分钟</div><div class="stat-label">完整阅读</div></div></div>\n' +
@@ -517,15 +554,20 @@ cards +
 
 function computeOverallStatus(sourceResults, items) {
   var coreFailed = false;
+  var anySuccess = false;
+  var anyPreviousDay = false;
   var anyFetchFailed = false;
   var anyParseFailed = false;
   var i;
   for (i = 0; i < sourceResults.length; i++) {
     if (sourceResults[i].core && (sourceResults[i].status === 'fetch_failed' || sourceResults[i].status === 'parse_failed')) coreFailed = true;
+    if (sourceResults[i].status === 'success') anySuccess = true;
+    if (sourceResults[i].status === 'previous_day') anyPreviousDay = true;
     if (sourceResults[i].status === 'fetch_failed') anyFetchFailed = true;
     if (sourceResults[i].status === 'parse_failed') anyParseFailed = true;
   }
-  if (items.length > 0 && !coreFailed) return 'success';
+  if (items.length > 0 && !coreFailed && anySuccess) return 'success';
+  if (items.length > 0 && !coreFailed && anyPreviousDay) return 'previous_day';
   if (items.length > 0 && anyFetchFailed) return 'fetch_failed';
   if (items.length > 0 && anyParseFailed) return 'parse_failed';
   if (anyFetchFailed) return 'fetch_failed';
@@ -594,16 +636,17 @@ function main() {
   var allItems = [];
   var pending = sources.map(function (source) {
     return fetchWithTimeout(source.url).then(function (html) {
-      var parsed = parseSource(html, source, iso);
+      var parsed = parseSourceWithFallback(html, source, iso);
       sourceResults.push({
         id: source.id,
         name: source.name,
         core: !!source.core,
-        status: parsed.length > 0 ? 'success' : 'no_today',
-        count: parsed.length,
+        status: parsed.status,
+        count: parsed.items.length,
+        fallbackDate: parsed.fallbackDate,
         homepage: source.homepage
       });
-      allItems = allItems.concat(parsed);
+      allItems = allItems.concat(parsed.items);
     }).catch(function (err) {
       var parseLike = /not found|usable|RSS item|parse/i.test(err.message);
       sourceResults.push({
