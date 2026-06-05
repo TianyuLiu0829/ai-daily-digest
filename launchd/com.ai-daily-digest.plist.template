@@ -12,8 +12,13 @@
   </array>
   <key>RunAtLoad</key>
   <true/>
-  <key>StartInterval</key>
-  <integer>3600</integer>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>17</integer>
+    <key>Minute</key>
+    <integer>30</integer>
+  </dict>
   <key>StandardOutPath</key>
   <string>/Users/liutianyu/Library/Application Support/AI Daily Digest/digest.log</string>
   <key>StandardErrorPath</key>

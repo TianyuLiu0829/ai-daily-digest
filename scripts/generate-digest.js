@@ -612,6 +612,7 @@ function computeOverallStatus(sourceResults, items) {
 function main() {
   var iso = todayISO();
   var state = readJson(STATE_PATH, {});
+  var isFinalRun = hasFlag('--final');
 
   if (hasFlag('--publish-only')) {
     try {
@@ -715,6 +716,8 @@ function main() {
         overallStatus: 'no_today',
         itemCount: 0,
         lastAttemptAt: nowText(),
+        generationPhase: isFinalRun ? 'final' : 'preliminary',
+        finalizedDate: isFinalRun ? iso : state.finalizedDate,
         pagesPublished: true,
         publishStatus: 'retained previous page',
         publishError: null
@@ -738,6 +741,7 @@ function main() {
       overallStatus: data.overallStatus,
       itemCount: data.items.length,
       codexError: data.codexError || null,
+      generationPhase: isFinalRun ? 'final' : 'preliminary',
       pagesPublished: false,
       publishStatus: null,
       publishError: null
@@ -751,6 +755,7 @@ function main() {
         pagesPublished: publishResult.published,
         publishedUrl: publishResult.url || PAGES_URL,
         publishedAt: publishResult.published ? nowText() : null,
+        finalizedDate: isFinalRun && publishResult.published ? iso : state.finalizedDate,
         publishStatus: publishResult.reason,
         publishError: null
       });

@@ -100,6 +100,6 @@ https://tianyuliu0829.github.io/ai-daily-digest/
 
 ## 可选本地自动化
 
-`launchd/com.ai-daily-digest.plist.template` 是 macOS 定时模板：登录时运行一次，之后每小时检查一次。由于脚本每天只生成一次，所以不会重复覆盖。
+`launchd/com.ai-daily-digest.plist.template` 是 macOS 定时模板：登录时立即运行一次早版，并在洛杉矶时间 17:30 运行最终版。如果登录时已经晚于 17:30，则当次直接生成最终版；当天最终版成功后不会重复生成。
 
 安装到 `~/Library/LaunchAgents` 需要写入用户系统目录，当前没有自动安装。
