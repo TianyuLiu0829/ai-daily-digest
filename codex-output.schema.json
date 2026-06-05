@@ -5,7 +5,7 @@
   "properties": {
     "items": {
       "type": "array",
-      "maxItems": 10,
+      "maxItems": 35,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -17,7 +17,7 @@
           "insightZh": { "type": "string" },
           "category": {
             "type": "string",
-            "enum": ["头条", "产品", "工具", "研究", "公司", "政策", "实操", "快讯"]
+            "enum": ["头条", "产品", "工具", "研究", "公司", "政策", "实操", "快讯", "融资", "GitHub"]
           },
           "importance": {
             "type": "string",

@@ -15,11 +15,15 @@ var EDITORIAL_RULES_PATH = path.join(ROOT, 'config', 'editorial-rules.md');
 var SCHEMA_PATH = path.join(ROOT, 'codex-output.schema.json');
 var TEMPLATE_PATH = path.join(ROOT, 'templates', 'digest.html');
 var CODEX_BIN = process.env.CODEX_BIN || '/Applications/Codex.app/Contents/Resources/codex';
-var MAX_ITEMS = parseInt(process.env.DIGEST_MAX_ITEMS || '8', 10);
+var DISPLAY_CATEGORY_IDS = ['news', 'app', 'fund', 'research', 'github'];
+var MIN_ITEMS_PER_CATEGORY = parseInt(process.env.DIGEST_MIN_ITEMS_PER_CATEGORY || '5', 10);
+var DEFAULT_MAX_ITEMS = Math.max(30, MIN_ITEMS_PER_CATEGORY * DISPLAY_CATEGORY_IDS.length);
+var MAX_ITEMS = parseInt(process.env.DIGEST_MAX_ITEMS || String(DEFAULT_MAX_ITEMS), 10);
 var FETCH_TIMEOUT_MS = parseInt(process.env.DIGEST_FETCH_TIMEOUT_MS || '18000', 10);
 var CODEX_TIMEOUT_MS = parseInt(process.env.DIGEST_CODEX_TIMEOUT_MS || '180000', 10);
 var PAGES_URL = process.env.DIGEST_PAGES_URL || 'https://tianyuliu0829.github.io/ai-daily-digest/';
-var REQUIRED_CATEGORY_IDS = ['fund', 'research', 'github'];
+var REQUIRED_CATEGORY_IDS = DISPLAY_CATEGORY_IDS;
+var DEFAULT_FALLBACK_DAYS = parseInt(process.env.DIGEST_FALLBACK_DAYS || '7', 10);
 
 function hasFlag(name) {
   return process.argv.indexOf(name) !== -1;
@@ -354,28 +358,37 @@ function enrichHelloGithubItem(item) {
   return fetchWithTimeout(item.link).then(function (html) {
     var data = parseNextData(html);
     var projects = [];
-    var best;
-    var repo;
+    var chosen;
+    var pending;
     if (!data) return item;
     collectHelloGithubProjects(data, '', projects);
     projects = projects.sort(function (a, b) {
       return helloGithubProjectScore(b) - helloGithubProjectScore(a);
     });
-    best = projects[0];
-    if (!best) return item;
-    repo = extractGitHubRepo(best.githubUrl);
-    item.title = best.name + '：' + compactText(best.description, 90);
-    item.summary = compactText('HelloGitHub ' + (best.categoryName || '开源') + '项目。用途：' + best.description +
-      ' 热度：' + compactNumber(best.stars) + ' stars，' + compactNumber(best.forks) + ' forks。来源发布时间：' + dateTimeText(best.publishAt) + '。', 700);
-    item.link = best.githubUrl;
-    item.published = best.publishAt || item.published;
-    item.categoryOverride = 'github';
-    if (!repo) return item;
-    return fetchJsonWithTimeout('https://api.github.com/repos/' + encodeURIComponent(repo.owner) + '/' + encodeURIComponent(repo.repo)).then(function (meta) {
-      return enrichWithGitHubMeta(item, meta, 'HelloGitHub 推荐项目，已用 GitHub 元数据复核。');
-    }).catch(function () {
-      return item;
+    chosen = projects.slice(0, Math.max(MIN_ITEMS_PER_CATEGORY, 5));
+    if (chosen.length === 0) return item;
+    pending = chosen.map(function (project, index) {
+      var cloned = {};
+      var key;
+      var repo = extractGitHubRepo(project.githubUrl);
+      for (key in item) {
+        if (Object.prototype.hasOwnProperty.call(item, key)) cloned[key] = item[key];
+      }
+      cloned.id = item.id + '-hg-' + index;
+      cloned.title = project.name + '：' + compactText(project.description, 90);
+      cloned.summary = compactText('HelloGitHub ' + (project.categoryName || '开源') + '项目。用途：' + project.description +
+        ' 热度：' + compactNumber(project.stars) + ' stars，' + compactNumber(project.forks) + ' forks。来源发布时间：' + dateTimeText(project.publishAt) + '。', 700);
+      cloned.link = project.githubUrl;
+      cloned.published = project.publishAt || item.published;
+      cloned.categoryOverride = 'github';
+      if (!repo) return Promise.resolve(cloned);
+      return fetchJsonWithTimeout('https://api.github.com/repos/' + encodeURIComponent(repo.owner) + '/' + encodeURIComponent(repo.repo)).then(function (meta) {
+        return enrichWithGitHubMeta(cloned, meta, 'HelloGitHub 推荐项目，已用 GitHub 元数据复核。');
+      }).catch(function () {
+        return cloned;
+      });
     });
+    return Promise.all(pending);
   }).catch(function () {
     item.categoryOverride = 'github';
     return item;
@@ -394,7 +407,19 @@ function enrichGitHubItems(items) {
       pending.push(Promise.resolve(items[i]));
     }
   }
-  return Promise.all(pending);
+  return Promise.all(pending).then(function (groups) {
+    var out = [];
+    var i;
+    var j;
+    for (i = 0; i < groups.length; i++) {
+      if (Array.isArray(groups[i])) {
+        for (j = 0; j < groups[i].length; j++) out.push(groups[i][j]);
+      } else {
+        out.push(groups[i]);
+      }
+    }
+    return out;
+  });
 }
 
 function parseRss(xml, source, iso) {
@@ -496,22 +521,48 @@ function parseSourceWithFallback(html, source, iso) {
   var previous;
   var maxFallbackDays;
   var i;
+  var combined = parsed.slice();
+  var fallbackDate = '';
+  var fallbackCount = 0;
+  var seenLinks = {};
+  for (i = 0; i < combined.length; i++) {
+    seenLinks[combined[i].link.replace(/[?#].*$/, '')] = true;
+  }
   if (parsed.length > 0) {
+    maxFallbackDays = Math.max(0, parseInt(source.fallbackDays || String(DEFAULT_FALLBACK_DAYS), 10));
+    for (i = 1; i <= maxFallbackDays; i++) {
+      previousIso = shiftISO(iso, -i);
+      previous = parseSource(html, source, previousIso);
+      previous.forEach(function (item) {
+        var key = item.link.replace(/[?#].*$/, '');
+        if (seenLinks[key]) return;
+        seenLinks[key] = true;
+        combined.push(item);
+        fallbackCount++;
+      });
+    }
     return {
-      items: parsed,
+      items: combined,
       status: 'success',
-      fallbackDate: ''
+      fallbackDate: fallbackCount > 0 ? shiftISO(iso, -maxFallbackDays) : ''
     };
   }
-  maxFallbackDays = Math.max(1, parseInt(source.fallbackDays || '1', 10));
+  maxFallbackDays = Math.max(1, parseInt(source.fallbackDays || String(DEFAULT_FALLBACK_DAYS), 10));
   for (i = 1; i <= maxFallbackDays; i++) {
     previousIso = shiftISO(iso, -i);
     previous = parseSource(html, source, previousIso);
     if (previous.length > 0) {
+      fallbackDate = previousIso;
+      combined = combined.concat(previous);
+      for (i = i + 1; i <= maxFallbackDays; i++) {
+        previousIso = shiftISO(iso, -i);
+        previous = parseSource(html, source, previousIso);
+        combined = combined.concat(previous);
+      }
       return {
-        items: previous,
+        items: combined,
         status: 'previous_day',
-        fallbackDate: previousIso
+        fallbackDate: fallbackDate
       };
     }
   }
@@ -538,6 +589,15 @@ function hasCategory(items, categoryId) {
     if (rawCategory(items[i]) === categoryId) return true;
   }
   return false;
+}
+
+function countCategory(items, categoryId) {
+  var count = 0;
+  var i;
+  for (i = 0; i < items.length; i++) {
+    if (rawCategory(items[i]) === categoryId) count++;
+  }
+  return count;
 }
 
 function hasSource(items, sourceId) {
@@ -576,9 +636,11 @@ function pushSourceCandidate(selected, scored, sourceId) {
 
 function ensureRequiredCategoryCandidates(selected, scored) {
   var i;
+  var filled;
   for (i = 0; i < REQUIRED_CATEGORY_IDS.length; i++) {
-    if (!hasCategory(selected, REQUIRED_CATEGORY_IDS[i])) {
-      pushCategoryCandidate(selected, scored, REQUIRED_CATEGORY_IDS[i]);
+    filled = true;
+    while (countCategory(selected, REQUIRED_CATEGORY_IDS[i]) < MIN_ITEMS_PER_CATEGORY && filled) {
+      filled = pushCategoryCandidate(selected, scored, REQUIRED_CATEGORY_IDS[i]);
     }
   }
   if (!hasSource(selected, 'hellogithub')) {
@@ -604,7 +666,7 @@ function dedupe(items) {
 
 function rankItems(items) {
   var highWords = /openai|anthropic|google|deepmind|nvidia|microsoft|meta|apple|amazon|claude|chatgpt|gemini|copilot|codex|cursor|perplexity|deepseek|qwen|mistral|llama|agent|agents|automation|workflow|memory|browser|email|calendar|files|notion|canva|adobe|zapier|price|pricing|free|subscription|privacy|copyright|security|safety|policy|regulation|china/i;
-  var lowSignalWords = /bug fix|bugfix|minor fix|patch release|maintenance|typo|docs update|documentation update|sdk update|sdk release|dependency update|performance bug|ui polish/i;
+  var lowSignalWords = /bug fix|bugfix|minor fix|patch release|maintenance|typo|docs update|documentation update|sdk update|sdk release|dependency update|performance bug|ui polish|rumor|rumour|unconfirmed|speculation|speculative/i;
   var rescueWords = /security|privacy|data loss|permission|agent|model|launch|release|pricing|price|free|subscription|copilot|workflow|automation|memory|browser|email|calendar|files|customer data|enterprise|consumer/i;
   var scored = [];
   var selected = [];
@@ -627,20 +689,25 @@ function rankItems(items) {
     var bs = b.score;
     return bs - as;
   });
+  ensureRequiredCategoryCandidates(selected, scored);
   for (i = 0; i < scored.length; i++) {
     var sourceId = scored[i].item.sourceId;
     var current = sourceCounts[sourceId] || 0;
+    if (selected.indexOf(scored[i].item) !== -1) {
+      sourceCounts[sourceId] = current + 1;
+      continue;
+    }
     if (current >= 3) continue;
     selected.push(scored[i].item);
     sourceCounts[sourceId] = current + 1;
-    if (selected.length >= MAX_ITEMS) return ensureRequiredCategoryCandidates(selected, scored);
+    if (selected.length >= MAX_ITEMS) return selected;
   }
   for (i = 0; i < scored.length; i++) {
     if (selected.indexOf(scored[i].item) !== -1) continue;
     selected.push(scored[i].item);
-    if (selected.length >= MAX_ITEMS) return ensureRequiredCategoryCandidates(selected, scored);
+    if (selected.length >= MAX_ITEMS) return selected;
   }
-  return ensureRequiredCategoryCandidates(selected, scored);
+  return selected;
 }
 
 function categoryLabelForItem(item, index) {
@@ -676,6 +743,15 @@ function hasDigestCategory(items, digestItems, categoryId) {
   return false;
 }
 
+function countDigestCategory(items, digestItems, categoryId) {
+  var count = 0;
+  var i;
+  for (i = 0; i < items.length; i++) {
+    if (classifyDigestItem(items[i], digestItems[i] || {}) === categoryId) count++;
+  }
+  return count;
+}
+
 function ensureRequiredDigestCategories(selectedItems, selectedDigest, allItems) {
   var i;
   var j;
@@ -685,8 +761,8 @@ function ensureRequiredDigestCategories(selectedItems, selectedDigest, allItems)
   for (i = 0; i < selectedItems.length; i++) alreadySelected[selectedItems[i].id] = true;
   for (i = 0; i < REQUIRED_CATEGORY_IDS.length; i++) {
     categoryId = REQUIRED_CATEGORY_IDS[i];
-    if (hasDigestCategory(selectedItems, selectedDigest, categoryId)) continue;
     for (j = 0; j < allItems.length; j++) {
+      if (countDigestCategory(selectedItems, selectedDigest, categoryId) >= MIN_ITEMS_PER_CATEGORY) break;
       item = allItems[j];
       if (alreadySelected[item.id] || rawCategory(item) !== categoryId) continue;
       selectedItems.push(item);
@@ -757,6 +833,7 @@ function runCodexDigest(items, iso) {
   var prompt = [
     '你是 AI Daily Digest 的中文编辑。',
     '基于 stdin JSON 生成最多 ' + MAX_ITEMS + ' 条中文日报。',
+    '尽量让行业新闻、产品应用、融资动态、研究技术、GitHub 每个板块至少 ' + MIN_ITEMS_PER_CATEGORY + ' 条；如果某板块可信候选不足，不要用谣言、小 bug fix 或无用更新硬凑。',
     '严格按 editorialRules 筛选：优先消费者 AI、AI 工作流、工具选择、成本/权限/风险变化；排除小 bug fix、SDK patch、纯 hype、纯融资和无实际影响的 benchmark。',
     '候选新闻可能包含前一天内容，这是正常回退；可以总结，但不要把前一天内容写成今天刚发布。',
     'GitHub/HelloGitHub 候选已包含项目用途、stars/forks 和最近更新时间；摘要必须说明它解决什么问题、是否仍在维护、为什么值得或不值得轻度 AI 工作流用户尝试。',
@@ -838,7 +915,10 @@ function classifyDigestItem(raw, digestItem) {
   var category = digestItem.category || '';
   var text = raw.sourceName + ' ' + raw.title + ' ' + raw.summary + ' ' + category;
   var categoryOverride = rawCategory(raw);
-  if (categoryOverride === 'github' || categoryOverride === 'fund' || categoryOverride === 'research') return categoryOverride;
+  if (categoryOverride === 'github' || categoryOverride === 'fund') return categoryOverride;
+  if (category === '融资') return 'fund';
+  if (category === '公司' || category === '政策' || category === '头条' || category === '快讯') return 'news';
+  if (categoryOverride === 'research') return 'research';
   if (/github/i.test(raw.sourceName + ' ' + raw.link)) return 'github';
   if (/融资|募资|funding|fundraise|valuation|估值|ipo|收购|acquisition/i.test(text)) return 'fund';
   if (category === '研究' || /论文|研究|benchmark|模型训练|开源模型|arxiv/i.test(text)) return 'research';
@@ -1019,10 +1099,19 @@ function main() {
 
   if (hasFlag('--rerender-last')) {
     var cachedData = readJson(RENDER_PATH, null);
+    var cachedInput;
+    var repaired;
     if (!cachedData) {
       console.error('No cached digest render data found.');
       process.exitCode = 1;
       return;
+    }
+    cachedInput = readJson(INPUT_PATH, null);
+    if (cachedInput && Array.isArray(cachedInput.items) && cachedInput.items.length > cachedData.items.length) {
+      repaired = alignDigestItems(cachedInput.items, cachedData.digest || fallbackDigest(cachedData.items || []));
+      cachedData.items = repaired.items;
+      cachedData.digest = repaired.digest;
+      writeJson(RENDER_PATH, cachedData);
     }
     fs.writeFileSync(INDEX_PATH, renderHtml(cachedData));
     console.log('Re-rendered index.html from cached digest data.');
