@@ -96,10 +96,22 @@ https://tianyuliu0829.github.io/ai-daily-digest/
 
 当前 Pages 发布源为 `main` 分支根目录。发布时没有创建每日历史链接，只覆盖固定 `index.html`。
 
-注意：本机命令行当前没有可用的 GitHub HTTPS/SSH 推送凭据，所以这次 `index.html` 是通过浏览器写入 GitHub 的。后续如果要让脚本自动推送，需要再配置 GitHub CLI、SSH key 或 token。
+本机命令行已可推送到该仓库；脚本发布时会提交并覆盖根目录的 `index.html`。
 
 ## 可选本地自动化
 
 `launchd/com.ai-daily-digest.plist.template` 是 macOS 定时模板：登录时立即运行一次早版，并在洛杉矶时间 10:30 运行上午版、16:30 运行最终版。如果登录时已经晚于其中一个时间，则当次直接补到对应阶段；每个阶段当天成功后不会重复生成。
 
-安装到 `~/Library/LaunchAgents` 需要写入用户系统目录，当前没有自动安装。
+当前已安装到 `~/Library/LaunchAgents/com.ai-daily-digest.plist`，实际运行目录是：
+
+```text
+~/Library/Application Support/AI Daily Digest
+```
+
+更新项目代码后，同步到运行目录时使用：
+
+```sh
+scripts/sync-runtime.sh
+```
+
+这个脚本会排除运行状态、缓存和日志，避免覆盖自动化当天是否已完成的记录。
