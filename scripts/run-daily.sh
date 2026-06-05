@@ -1,5 +1,6 @@
 #!/bin/sh
 cd "$(dirname "$0")/.."
+: > digest.err.log
 
 if [ -x "/Applications/Codex.app/Contents/Resources/node" ]; then
   NODE_BIN="/Applications/Codex.app/Contents/Resources/node"
