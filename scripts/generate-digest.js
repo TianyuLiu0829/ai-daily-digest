@@ -9,9 +9,11 @@ var INDEX_PATH = path.join(ROOT, 'index.html');
 var STATE_PATH = path.join(ROOT, '.digest-state.json');
 var INPUT_PATH = path.join(ROOT, '.digest-last-input.json');
 var OUTPUT_PATH = path.join(ROOT, '.digest-last-output.json');
+var RENDER_PATH = path.join(ROOT, '.digest-last-render.json');
 var SOURCES_PATH = path.join(ROOT, 'config', 'sources.json');
 var EDITORIAL_RULES_PATH = path.join(ROOT, 'config', 'editorial-rules.md');
 var SCHEMA_PATH = path.join(ROOT, 'codex-output.schema.json');
+var TEMPLATE_PATH = path.join(ROOT, 'templates', 'digest.html');
 var CODEX_BIN = process.env.CODEX_BIN || '/Applications/Codex.app/Contents/Resources/codex';
 var MAX_ITEMS = parseInt(process.env.DIGEST_MAX_ITEMS || '8', 10);
 var FETCH_TIMEOUT_MS = parseInt(process.env.DIGEST_FETCH_TIMEOUT_MS || '18000', 10);
@@ -529,23 +531,95 @@ function sourceStatusClass(status, core) {
   return 'warn';
 }
 
-function renderCards(items, digest) {
+var CATEGORY_CONFIG = [
+  { id: 'news', label: '行业新闻', en: 'Industry News', color: 'red' },
+  { id: 'app', label: '产品应用', en: 'Products & Apps', color: 'blue' },
+  { id: 'fund', label: '融资动态', en: 'Funding & Business', color: 'green' },
+  { id: 'research', label: '研究技术', en: 'Research & Engineering', color: 'purple' },
+  { id: 'github', label: 'GitHub', en: 'GitHub & Open Source', color: 'amber' }
+];
+
+function classifyDigestItem(raw, digestItem) {
+  var category = digestItem.category || '';
+  var text = raw.sourceName + ' ' + raw.title + ' ' + raw.summary + ' ' + category;
+  if (/github/i.test(raw.sourceName + ' ' + raw.link)) return 'github';
+  if (/融资|募资|funding|fundraise|valuation|估值|ipo|收购|acquisition/i.test(text)) return 'fund';
+  if (category === '研究' || /论文|研究|benchmark|模型训练|开源模型|arxiv/i.test(text)) return 'research';
+  if (category === '产品' || category === '工具' || category === '实操') return 'app';
+  return 'news';
+}
+
+function renderCard(raw, digestItem, index, categoryId) {
+  var featured = digestItem.importance === 'high' ? ' featured' : '';
+  var badge = digestItem.category || '快讯';
+  var title = digestItem.titleZh || raw.title;
+  var summary = digestItem.summaryZh || raw.summary || '此来源没有提供摘要。';
+  var insight = digestItem.insightZh || '信息有限，建议打开原文确认细节后再决定是否调整当前工作流。';
+  return '<div class="card c-' + categoryId + featured + '" data-id="n' + (index + 1) + '" data-title="' + escapeHtml(title) + '" data-link="' + escapeHtml(raw.link) + '">' +
+    '<div class="card-row"><label class="card-chk"><input type="checkbox" aria-label="选择此条新闻"></label><div class="card-body-wrap">' +
+    '<a class="card-lnk" href="' + escapeHtml(raw.link) + '" target="_blank" rel="noopener">' +
+    '<div class="card-top"><div class="card-headline">' + escapeHtml(title) + '</div><span class="badge b-' + categoryId + '">' + escapeHtml(badge) + '</span></div>' +
+    '<div class="card-text">' + escapeHtml(summary) + '</div></a>' +
+    '<div class="card-ft"><span class="card-src">' + escapeHtml(raw.sourceName) + '</span><span class="card-time">· 原文</span><a class="card-orig" href="' + escapeHtml(raw.link) + '" target="_blank" rel="noopener">阅读原文</a></div>' +
+    '</div></div><div class="insight"><div class="ins-lbl">AI 解读</div><div class="ins-txt">' + escapeHtml(insight) + '</div></div></div>';
+}
+
+function groupDigestItems(items, digest) {
+  var grouped = {};
+  var i;
+  var categoryId;
+  for (i = 0; i < CATEGORY_CONFIG.length; i++) grouped[CATEGORY_CONFIG[i].id] = [];
+  for (i = 0; i < items.length; i++) {
+    categoryId = classifyDigestItem(items[i], digest.items[i] || {});
+    grouped[categoryId].push({
+      raw: items[i],
+      digest: digest.items[i] || {},
+      index: i
+    });
+  }
+  return grouped;
+}
+
+function renderFilterButtons(grouped, total) {
+  var html = ['<button class="filter-btn active" type="button" data-filter="all">全部 <span class="ct">' + total + '</span></button>'];
+  var i;
+  var config;
+  for (i = 0; i < CATEGORY_CONFIG.length; i++) {
+    config = CATEGORY_CONFIG[i];
+    html.push('<button class="filter-btn" type="button" data-filter="' + config.id + '"><span class="dot dot-' + config.id + '"></span>' + config.label + ' <span class="ct">' + grouped[config.id].length + '</span></button>');
+  }
+  return html.join('\n');
+}
+
+function renderSections(grouped) {
   var html = [];
   var i;
-  for (i = 0; i < items.length; i++) {
-    var raw = items[i];
-    var d = digest.items[i] || {};
-    var featured = d.importance === 'high' ? ' featured' : '';
-    var badge = d.category || (i < 2 ? '头条' : '快讯');
-    html.push('<div class="card' + featured + '" data-id="' + escapeHtml('n' + (i + 1)) + '" data-title="' + escapeHtml(d.titleZh || raw.title) + '" data-summary="' + escapeHtml(d.summaryZh || raw.summary) + '" data-link="' + escapeHtml(raw.link) + '">');
-    html.push('<div class="card-check"><input type="checkbox" aria-label="选择此条新闻"></div>');
-    html.push('<a class="card-link-area" href="' + escapeHtml(raw.link) + '" target="_blank" rel="noopener">');
-    html.push('<div class="card-top"><div class="card-headline">' + escapeHtml(d.titleZh || raw.title) + '</div><span class="badge">' + escapeHtml(badge) + '</span></div>');
-    html.push('<div class="card-body">' + escapeHtml(d.summaryZh || raw.summary || '此来源没有提供摘要。') + '</div>');
-    html.push('</a>');
-    html.push('<div class="card-footer-bar"><span class="card-source">' + escapeHtml(raw.sourceName) + '</span><span class="card-readtime">· 原文</span><a class="card-orig" href="' + escapeHtml(raw.link) + '" target="_blank" rel="noopener">阅读原文 ↗</a></div>');
-    html.push('<div class="insight"><div class="insight-label">实用解读</div><div class="insight-text">' + escapeHtml(d.insightZh || '') + '</div></div>');
-    html.push('</div>');
+  var j;
+  var config;
+  var entries;
+  for (i = 0; i < CATEGORY_CONFIG.length; i++) {
+    config = CATEGORY_CONFIG[i];
+    entries = grouped[config.id];
+    html.push('<section class="sec" data-section="' + config.id + '">');
+    html.push('<div class="sec-hd"><span class="sec-name ' + config.color + '">' + config.label + '</span><span class="sec-en">' + config.en + '</span><span class="sec-ct">' + entries.length + ' 条</span></div>');
+    if (entries.length === 0) {
+      html.push('<div class="empty-section">本期没有符合筛选标准的内容</div>');
+    } else {
+      for (j = 0; j < entries.length; j++) {
+        html.push(renderCard(entries[j].raw, entries[j].digest, entries[j].index, config.id));
+      }
+    }
+    html.push('</section>');
+  }
+  return html.join('\n');
+}
+
+function renderSourcePills(sources) {
+  var html = [];
+  var i;
+  for (i = 0; i < sources.length; i++) {
+    if (!sources[i].homepage) continue;
+    html.push('<a class="src-pill" href="' + escapeHtml(sources[i].homepage) + '" target="_blank" rel="noopener">' + escapeHtml(sources[i].name) + '</a>');
   }
   return html.join('\n');
 }
@@ -564,26 +638,31 @@ function renderSources(sources) {
   return html.join('\n');
 }
 
+function renderStatusPanel(data) {
+  var hasFailure = data.overallStatus === 'fetch_failed' || data.overallStatus === 'parse_failed';
+  var codexNote = data.codexError ? ' · Codex 摘要失败，已使用本地降级摘要' : '';
+  return '<details class="status-panel"' + (hasFailure ? ' open' : '') + '>' +
+    '<summary class="status-summary"><span class="status-title">抓取状态</span><span class="status-meta">更新时间 ' + escapeHtml(data.generatedAt) + codexNote + '</span><span class="status-badge ' + escapeHtml(data.overallStatus) + '">' + escapeHtml(statusLabel(data.overallStatus)) + '</span></summary>' +
+    '<div class="source-list">' + renderSources(data.sourceResults) + '</div></details>';
+}
+
+function replaceTemplateToken(template, token, value) {
+  return template.split('{{' + token + '}}').join(String(value));
+}
+
 function renderHtml(data) {
-  var title = 'AI 日报';
-  var status = statusLabel(data.overallStatus);
-  var cards = data.items.length ? renderCards(data.items, data.digest) : '<div class="empty-card">今天没有抓到可用的当日内容。页面已更新状态，但未生成新闻卡片。</div>';
-  return '<!DOCTYPE html>\n' +
-'<html lang="zh-CN">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>' + title + ' — ' + escapeHtml(dateZh(data.date)) + '</title>\n' +
-'<link rel="preconnect" href="https://fonts.googleapis.com">\n<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">\n' +
-'<style>\n' +
-':root{--bg:#f5f4f0;--surface:#fff;--surface2:#f9f8f5;--border:rgba(0,0,0,.09);--border-h:rgba(0,0,0,.2);--text:#181614;--text2:#3d3a36;--text3:#888480;--purple:#4f3fcf;--purple-bg:rgba(79,63,207,.07);--green:#1a7a4e;--green-bg:rgba(26,122,78,.07);--amber:#92580a;--amber-bg:rgba(146,88,10,.08);--red:#b02020;--red-bg:rgba(176,32,32,.07);--insight-bg:#f0ede6;--insight-bdr:#ddd8ce;--selected-bg:#fffbeb;--selected-bdr:#d4a017;--font:\'Noto Sans SC\',\'PingFang SC\',\'Microsoft YaHei\',sans-serif;--mono:\'Space Mono\',\'Courier New\',monospace;}\n' +
-'*,*:before,*:after{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:16px;line-height:1.75;-webkit-font-smoothing:antialiased}.page{max-width:820px;margin:0 auto;padding:0 1.75rem 8rem}.masthead{padding:3rem 0 2rem;border-bottom:1.5px solid var(--border);margin-bottom:1.25rem;position:relative;overflow:hidden}.masthead:after{content:\'AI\';position:absolute;right:-1rem;top:50%;transform:translateY(-50%);font-family:var(--mono);font-size:190px;font-weight:700;color:rgba(79,63,207,.04);line-height:1}.masthead-tag{font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--text3);display:block;margin-bottom:.5rem}.masthead-title{font-size:clamp(34px,6vw,52px);font-weight:700;line-height:1.05;margin-bottom:.35rem}.masthead-title span{color:var(--purple)}.masthead-sub{font-size:13px;color:var(--text3);margin-bottom:.9rem}.masthead-sources{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}.masthead-date,.source-pill{font-family:var(--mono);font-size:10px;color:var(--text3)}.source-pill{padding:3px 9px;border-radius:20px;border:1px solid var(--border);text-decoration:none}.status-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:0 0 2rem;padding:1rem 1.1rem}.status-head{display:flex;justify-content:space-between;gap:1rem;align-items:center;border-bottom:1px solid var(--border);padding-bottom:.75rem;margin-bottom:.75rem}.status-title{font-size:14px;font-weight:700}.status-badge{font-family:var(--mono);font-size:10px;border-radius:20px;padding:4px 10px;background:var(--purple-bg);color:var(--purple)}.status-badge.fetch_failed,.status-badge.parse_failed{background:var(--red-bg);color:var(--red)}.status-badge.no_today,.status-badge.previous_day{background:var(--amber-bg);color:var(--amber)}.source-row{display:grid;grid-template-columns:1fr auto;gap:.35rem 1rem;font-size:12px;padding:.45rem 0;border-bottom:1px solid rgba(0,0,0,.05)}.source-row:last-child{border-bottom:0}.source-row small{grid-column:1/-1;color:var(--text3)}.source-row.ok span{color:var(--green)}.source-row.warn span{color:var(--amber)}.source-row.core-fail{background:var(--red-bg);margin:.25rem -.5rem;padding:.5rem;border-radius:8px}.source-row.core-fail span{color:var(--red);font-weight:700}.core-tag{font-family:var(--mono);font-size:9px;margin-left:.45rem;color:var(--red)}.stat-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:2.5rem}.stat-box{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.9rem 1.1rem}.stat-num{font-family:var(--mono);font-size:22px;font-weight:700;line-height:1;margin-bottom:4px}.stat-label{font-size:12px;color:var(--text3)}.section-header{display:flex;align-items:center;gap:10px;margin:2.25rem 0 1.1rem}.section-icon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;background:var(--purple-bg)}.section-title{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text3)}.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:.9rem;overflow:hidden;transition:border-color .2s,box-shadow .2s;position:relative}.card:hover{border-color:var(--border-h);box-shadow:0 2px 14px rgba(0,0,0,.07)}.card.featured{border-left:3px solid var(--purple)}.card.selected{background:var(--selected-bg);border-color:var(--selected-bdr)}.card-check{position:absolute;top:1rem;right:1rem;z-index:2}.card-check input{width:18px;height:18px;accent-color:var(--purple);cursor:pointer}.card-link-area{display:block;text-decoration:none;color:inherit;padding:1.2rem 3rem 0 1.4rem;transition:background .15s}.card-link-area:hover{background:var(--surface2)}.card-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:.5rem}.card-headline{font-size:16px;font-weight:700;line-height:1.5;flex:1}.card.featured .card-headline{color:var(--purple)}.badge{font-family:var(--mono);font-size:9px;letter-spacing:.06em;padding:3px 9px;border-radius:20px;white-space:nowrap;background:var(--purple-bg);color:var(--purple);margin-top:2px}.card-body{font-size:14.5px;color:var(--text2);line-height:1.8;padding:0 3rem .85rem 1.4rem}.card-footer-bar{display:flex;align-items:center;gap:8px;padding:.55rem 1.4rem .75rem;border-top:1px solid var(--border)}.card-source,.card-readtime{font-family:var(--mono);font-size:10px;color:var(--text3)}.card-orig{font-family:var(--mono);font-size:10px;color:var(--purple);text-decoration:none;margin-left:auto;opacity:.75}.insight{background:var(--insight-bg);border-top:1px solid var(--insight-bdr);padding:.9rem 1.4rem 1rem}.insight-label{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--purple);margin-bottom:.35rem}.insight-text{font-size:13.5px;color:var(--text2);line-height:1.8}.empty-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.3rem;color:var(--text2)}#float-bar{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%) translateY(80px);background:var(--text);color:#fff;border-radius:40px;padding:.65rem 1.4rem;display:flex;align-items:center;gap:1rem;font-family:var(--mono);font-size:11px;white-space:nowrap;box-shadow:0 4px 24px rgba(0,0,0,.25);transition:transform .3s ease,opacity .3s;opacity:0;pointer-events:none;z-index:100}#float-bar.visible{transform:translateX(-50%) translateY(0);opacity:1;pointer-events:all}#float-count{font-weight:700;color:#9b8fff}.float-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:20px;padding:.35rem .9rem;font-family:var(--mono);font-size:10px;cursor:pointer}.float-btn.primary{background:var(--purple);border-color:var(--purple)}.footer{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:.5rem;flex-wrap:wrap}.footer-text,.footer-link{font-family:var(--mono);font-size:10px;color:var(--text3)}.footer-link{color:var(--purple);text-decoration:none}@media(max-width:600px){.page{padding:0 1rem 6rem}.masthead-title{font-size:30px}.stat-strip{grid-template-columns:1fr}#float-bar{width:calc(100% - 2rem);justify-content:center;gap:.5rem}.float-btn{padding:.35rem .55rem}.card-footer-bar{align-items:flex-start;flex-direction:column}.card-orig{margin-left:0}}\n' +
-'</style>\n</head>\n<body>\n<div class="page">\n<header class="masthead"><span class="masthead-tag">AI Daily Digest · MVP First</span><h1 class="masthead-title">AI <span>日报</span></h1><p class="masthead-sub">本地抓取 · Codex 中文摘要 · 固定 GitHub Pages 页面</p><div class="masthead-sources"><span class="masthead-date">' + escapeHtml(dateZh(data.date)) + '</span><a class="source-pill" href="https://ai.tldr.tech/" target="_blank" rel="noopener">TLDR AI ↗</a><a class="source-pill" href="https://www.therundown.ai/" target="_blank" rel="noopener">The Rundown AI ↗</a></div></header>\n' +
-'<div class="status-panel"><div class="status-head"><div><div class="status-title">抓取状态</div><div class="masthead-sub">更新时间：' + escapeHtml(data.generatedAt) + (data.codexError ? ' · Codex 摘要失败，已用本地降级摘要' : '') + '</div></div><span class="status-badge ' + escapeHtml(data.overallStatus) + '">' + escapeHtml(status) + '</span></div>' + renderSources(data.sourceResults) + '</div>\n' +
-'<div class="stat-strip"><div class="stat-box"><div class="stat-num">' + data.items.length + '</div><div class="stat-label">精选新闻</div></div><div class="stat-box"><div class="stat-num">' + data.sourceResults.length + '</div><div class="stat-label">信息来源</div></div><div class="stat-box"><div class="stat-num">~' + Math.max(3, data.items.length * 2) + ' 分钟</div><div class="stat-label">完整阅读</div></div></div>\n' +
-'<div class="section-header"><div class="section-icon">🚀</div><span class="section-title">今日精选</span></div>\n' +
-cards +
-'<div class="footer"><span class="footer-text">AI Daily Digest MVP · 固定 index.html · 不保留历史 report 链接</span><a class="footer-link" href="./" target="_self">固定页面链接</a></div>\n</div>\n' +
-'<div id="float-bar"><span>已选 <span id="float-count">0</span> 条</span><button class="float-btn" onclick="clearAll()">清除选择</button><button class="float-btn primary" onclick="copySelection()">复制标题+链接</button></div>\n' +
-'<script>\n' +
-'var selectedIds = [];\nfunction hasSelected(id){var i;for(i=0;i<selectedIds.length;i++){if(selectedIds[i]===id){return true;}}return false;}\nfunction addSelected(id){if(!hasSelected(id)){selectedIds.push(id);}}\nfunction removeSelected(id){var out=[],i;for(i=0;i<selectedIds.length;i++){if(selectedIds[i]!==id){out.push(selectedIds[i]);}}selectedIds=out;}\nfunction updateFloatBar(){var bar=document.getElementById("float-bar");document.getElementById("float-count").innerHTML=String(selectedIds.length);if(selectedIds.length>0){bar.className="visible";}else{bar.className="";}}\nfunction buildText(){var lines=[],i,el,title,link;for(i=0;i<selectedIds.length;i++){el=document.querySelector("[data-id=\\"" + selectedIds[i] + "\\"]");if(!el){continue;}title=el.getAttribute("data-title")||"";link=el.getAttribute("data-link")||"";lines.push(title);lines.push(link);lines.push("");}return lines.join("\\n");}\nfunction fallbackCopy(text){var ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand("copy");document.body.removeChild(ta);}\nfunction copySelection(){var text=buildText();var btn=document.querySelector(".float-btn.primary");var old=btn.innerHTML;function done(){btn.innerHTML="已复制 ✓";setTimeout(function(){btn.innerHTML=old;},1600);}if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,function(){fallbackCopy(text);done();});}else{fallbackCopy(text);done();}}\nfunction clearAll(){var boxes=document.querySelectorAll("input[type=checkbox]"),cards=document.querySelectorAll(".card"),i;selectedIds=[];for(i=0;i<boxes.length;i++){boxes[i].checked=false;}for(i=0;i<cards.length;i++){cards[i].className=cards[i].className.replace(/ selected/g,"");}updateFloatBar();}\nfunction wireCards(){var cards=document.querySelectorAll(".card[data-id]"),i;for(i=0;i<cards.length;i++){(function(card){var cb=card.querySelector("input[type=checkbox]");if(!cb){return;}cb.onchange=function(){var id=card.getAttribute("data-id");if(cb.checked){addSelected(id);if(card.className.indexOf("selected")===-1){card.className+=" selected";}}else{removeSelected(id);card.className=card.className.replace(/ selected/g,"");}updateFloatBar();};cb.onclick=function(e){if(e&&e.stopPropagation){e.stopPropagation();}};})(cards[i]);}}\nwireCards();\n' +
-'</script>\n</body>\n</html>\n';
+  var grouped = groupDigestItems(data.items, data.digest);
+  var template = readText(TEMPLATE_PATH, '');
+  if (!template) throw new Error('Digest template not found: ' + TEMPLATE_PATH);
+  template = replaceTemplateToken(template, 'DATE_ZH', escapeHtml(dateZh(data.date)));
+  template = replaceTemplateToken(template, 'TOTAL', data.items.length);
+  template = replaceTemplateToken(template, 'SOURCE_COUNT', data.sourceResults.length);
+  template = replaceTemplateToken(template, 'UPDATE_TIME', escapeHtml(data.generatedAt));
+  template = replaceTemplateToken(template, 'SOURCE_PILLS', renderSourcePills(data.sourceResults));
+  template = replaceTemplateToken(template, 'FILTER_BUTTONS', renderFilterButtons(grouped, data.items.length));
+  template = replaceTemplateToken(template, 'STATUS_PANEL', renderStatusPanel(data));
+  template = replaceTemplateToken(template, 'SECTIONS', renderSections(grouped));
+  return template;
 }
 
 function computeOverallStatus(sourceResults, items) {
@@ -628,6 +707,37 @@ function main() {
         publishError: null
       });
       console.log('Publish check: ' + publishOnlyResult.reason);
+    } catch (err) {
+      updateState({
+        pagesPublished: false,
+        publishError: err.message,
+        publishFailedAt: nowText()
+      });
+      console.error('Publish failed: ' + err.message);
+      process.exitCode = 1;
+    }
+    return;
+  }
+
+  if (hasFlag('--rerender-last')) {
+    var cachedData = readJson(RENDER_PATH, null);
+    if (!cachedData) {
+      console.error('No cached digest render data found.');
+      process.exitCode = 1;
+      return;
+    }
+    fs.writeFileSync(INDEX_PATH, renderHtml(cachedData));
+    console.log('Re-rendered index.html from cached digest data.');
+    try {
+      var rerenderPublishResult = publishToGitHub(cachedData.date || iso);
+      updateState({
+        pagesPublished: rerenderPublishResult.published,
+        publishedUrl: rerenderPublishResult.url || state.publishedUrl || PAGES_URL,
+        publishedAt: rerenderPublishResult.published ? nowText() : state.publishedAt,
+        publishStatus: rerenderPublishResult.reason,
+        publishError: null
+      });
+      console.log('Publish check: ' + rerenderPublishResult.reason);
     } catch (err) {
       updateState({
         pagesPublished: false,
@@ -737,6 +847,7 @@ function main() {
       codexError: result.codexError,
       overallStatus: computedStatus
     };
+    writeJson(RENDER_PATH, data);
     fs.writeFileSync(INDEX_PATH, renderHtml(data));
     var statePatch = {
       generatedDate: iso,

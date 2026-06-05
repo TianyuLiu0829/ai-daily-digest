@@ -1,6 +1,7 @@
 .digest-state.json
 .digest-last-input.json
 .digest-last-output.json
+.digest-last-render.json
 node_modules/
 .DS_Store
 digest.log
