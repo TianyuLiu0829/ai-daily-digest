@@ -9,6 +9,7 @@ var INDEX_PATH = path.join(ROOT, 'index.html');
 var STATE_PATH = path.join(ROOT, '.digest-state.json');
 var INPUT_PATH = path.join(ROOT, '.digest-last-input.json');
 var OUTPUT_PATH = path.join(ROOT, '.digest-last-output.json');
+var REPAIR_OUTPUT_PATH = path.join(ROOT, '.digest-last-repair-output.json');
 var RENDER_PATH = path.join(ROOT, '.digest-last-render.json');
 var SOURCES_PATH = path.join(ROOT, 'config', 'sources.json');
 var EDITORIAL_RULES_PATH = path.join(ROOT, 'config', 'editorial-rules.md');
@@ -24,6 +25,7 @@ var CODEX_TIMEOUT_MS = parseInt(process.env.DIGEST_CODEX_TIMEOUT_MS || '180000',
 var PAGES_URL = process.env.DIGEST_PAGES_URL || 'https://tianyuliu0829.github.io/ai-daily-digest/';
 var REQUIRED_CATEGORY_IDS = DISPLAY_CATEGORY_IDS;
 var DEFAULT_FALLBACK_DAYS = parseInt(process.env.DIGEST_FALLBACK_DAYS || '7', 10);
+var GENERIC_FALLBACK_INSIGHT = '对轻度 AI 工作流用户：先判断这条新闻是否会影响你正在用的工具、价格、权限或自动化能力。';
 
 function hasFlag(name) {
   return process.argv.indexOf(name) !== -1;
@@ -816,6 +818,149 @@ function alignDigestItems(items, digest) {
   };
 }
 
+function chineseCharCount(text) {
+  var match = String(text || '').match(/[\u4e00-\u9fff]/g);
+  return match ? match.length : 0;
+}
+
+function latinWordCount(text) {
+  var match = String(text || '').match(/[A-Za-z][A-Za-z'’-]{2,}/g);
+  return match ? match.length : 0;
+}
+
+function looksUntranslated(text, minLatinWords, minChineseChars) {
+  var value = compactText(text || '', 600);
+  if (!value) return true;
+  return chineseCharCount(value) < minChineseChars && latinWordCount(value) >= minLatinWords;
+}
+
+function isGenericFallbackInsight(text) {
+  return String(text || '').indexOf(GENERIC_FALLBACK_INSIGHT) !== -1;
+}
+
+function needsDigestRepair(raw, digestItem) {
+  if (!raw || !digestItem) return true;
+  if (!digestItem.titleZh || !digestItem.summaryZh || !digestItem.insightZh) return true;
+  if (looksUntranslated(digestItem.titleZh, 4, 2)) return true;
+  if (looksUntranslated(digestItem.summaryZh, 8, 4)) return true;
+  if (looksUntranslated(digestItem.insightZh, 8, 4)) return true;
+  if (isGenericFallbackInsight(digestItem.insightZh)) return true;
+  return false;
+}
+
+function findDigestRepairTargets(items, digest) {
+  var targets = [];
+  var digestItems = digest && Array.isArray(digest.items) ? digest.items : [];
+  var i;
+  for (i = 0; i < items.length; i++) {
+    if (needsDigestRepair(items[i], digestItems[i])) {
+      targets.push({
+        raw: items[i],
+        currentDigest: digestItems[i] || fallbackDigest([items[i]]).items[0]
+      });
+    }
+  }
+  return targets;
+}
+
+function mergeDigestRepair(digest, repairedDigest) {
+  var repairedById = {};
+  var merged = [];
+  var i;
+  var entry;
+  if (!repairedDigest || !Array.isArray(repairedDigest.items)) return digest;
+  for (i = 0; i < repairedDigest.items.length; i++) {
+    entry = repairedDigest.items[i];
+    if (entry && entry.itemId) repairedById[entry.itemId] = entry;
+  }
+  for (i = 0; i < digest.items.length; i++) {
+    entry = digest.items[i];
+    merged.push(repairedById[entry.itemId] || entry);
+  }
+  return { items: merged };
+}
+
+function runCodexDigestRepair(targets, iso) {
+  if (hasFlag('--no-codex')) {
+    return Promise.reject(new Error('Codex disabled by --no-codex'));
+  }
+  if (!fs.existsSync(CODEX_BIN)) {
+    return Promise.reject(new Error('Codex CLI not found: ' + CODEX_BIN));
+  }
+  var input = {
+    date: iso,
+    instruction: '请只修复这些中文日报条目中的漏翻译、英文摘要或通用 fallback 解读。',
+    editorialRules: readText(EDITORIAL_RULES_PATH, ''),
+    targets: targets
+  };
+  var prompt = [
+    '你是 AI Daily Digest 的中文质量检查编辑。',
+    '以下条目已经入选日报，但存在英文标题/摘要、缺少中文实用解读，或使用了通用 fallback 文案。',
+    '只修复 stdin JSON 中 targets 里的条目；每条必须原样返回 currentDigest.itemId。',
+    'titleZh 必须是自然中文标题，可以保留必要英文产品名、公司名、项目名。',
+    'summaryZh 必须是 2-3 句中文摘要；不要照搬英文原句。',
+    'insightZh 必须给对轻度 AI 工作流用户的明确判断：可以试用、值得关注、暂不急用、适合个人 workflow、需要谨慎或先观察。',
+    '如果原文信息有限，明确写信息有限；不要编造原文没有的信息。',
+    'category 和 importance 沿用 currentDigest，除非明显错误。',
+    '只输出符合 schema 的 JSON。'
+  ].join('\n');
+
+  return new Promise(function (resolve, reject) {
+    var args = [
+      '-c', 'model_reasoning_effort="low"',
+      '--ask-for-approval', 'never',
+      'exec',
+      '--skip-git-repo-check',
+      '--sandbox', 'read-only',
+      '--output-schema', SCHEMA_PATH,
+      '--output-last-message', REPAIR_OUTPUT_PATH,
+      '-'
+    ];
+    var child = childProcess.spawn(CODEX_BIN, args, { cwd: ROOT, stdio: ['pipe', 'pipe', 'pipe'] });
+    var stdout = '';
+    var stderr = '';
+    var timer = setTimeout(function () {
+      child.kill('SIGTERM');
+      reject(new Error('Codex repair timeout'));
+    }, CODEX_TIMEOUT_MS);
+    child.stdout.on('data', function (data) { stdout += data.toString(); });
+    child.stderr.on('data', function (data) { stderr += data.toString(); });
+    child.on('error', function (err) {
+      clearTimeout(timer);
+      reject(err);
+    });
+    child.on('close', function (code) {
+      clearTimeout(timer);
+      if (code !== 0) {
+        reject(new Error('Codex repair exit ' + code + ': ' + compactText(stderr || stdout, 500)));
+        return;
+      }
+      try {
+        var text = fs.existsSync(REPAIR_OUTPUT_PATH) ? fs.readFileSync(REPAIR_OUTPUT_PATH, 'utf8') : stdout;
+        resolve(JSON.parse(text));
+      } catch (err) {
+        reject(new Error('Codex repair JSON parse failed: ' + err.message));
+      }
+    });
+    child.stdin.write(prompt + '\n\n<stdin>\n' + JSON.stringify(input, null, 2) + '\n</stdin>\n');
+    child.stdin.end();
+  });
+}
+
+function repairDigestQuality(items, digest, iso) {
+  var targets = findDigestRepairTargets(items, digest);
+  if (targets.length === 0 || hasFlag('--no-codex')) {
+    return Promise.resolve({ digest: digest, repairedCount: 0, error: '' });
+  }
+  return runCodexDigestRepair(targets, iso).then(function (repairedDigest) {
+    return {
+      digest: mergeDigestRepair(digest, repairedDigest),
+      repairedCount: targets.length,
+      error: ''
+    };
+  });
+}
+
 function runCodexDigest(items, iso) {
   if (hasFlag('--no-codex')) {
     return Promise.reject(new Error('Codex disabled by --no-codex'));
@@ -1137,6 +1282,56 @@ function main() {
     return;
   }
 
+  if (hasFlag('--repair-last')) {
+    var repairCachedData = readJson(RENDER_PATH, null);
+    var repairCachedInput;
+    var repairAligned;
+    if (!repairCachedData) {
+      console.error('No cached digest render data found.');
+      process.exitCode = 1;
+      return;
+    }
+    repairCachedInput = readJson(INPUT_PATH, null);
+    if (repairCachedInput && Array.isArray(repairCachedInput.items)) {
+      repairAligned = alignDigestItems(repairCachedInput.items, repairCachedData.digest || fallbackDigest(repairCachedData.items || []));
+      repairCachedData.items = repairAligned.items;
+      repairCachedData.digest = repairAligned.digest;
+    }
+    repairDigestQuality(repairCachedData.items || [], repairCachedData.digest || fallbackDigest(repairCachedData.items || []), repairCachedData.date || iso).then(function (repairResult) {
+      repairCachedData.digest = repairResult.digest;
+      if (repairResult.repairedCount > 0) {
+        repairCachedData.codexError = repairCachedData.codexError || '';
+      }
+      writeJson(RENDER_PATH, repairCachedData);
+      fs.writeFileSync(INDEX_PATH, renderHtml(repairCachedData));
+      console.log('Repaired cached digest quality: items=' + repairResult.repairedCount);
+      if (hasFlag('--no-publish')) return;
+      try {
+        var repairPublishResult = publishToGitHub(repairCachedData.date || iso);
+        updateState({
+          pagesPublished: repairPublishResult.published,
+          publishedUrl: repairPublishResult.url || state.publishedUrl || PAGES_URL,
+          publishedAt: repairPublishResult.published ? nowText() : state.publishedAt,
+          publishStatus: repairPublishResult.reason,
+          publishError: null
+        });
+        console.log('Publish check: ' + repairPublishResult.reason);
+      } catch (err) {
+        updateState({
+          pagesPublished: false,
+          publishError: err.message,
+          publishFailedAt: nowText()
+        });
+        console.error('Publish failed: ' + err.message);
+        process.exitCode = 1;
+      }
+    }).catch(function (err) {
+      console.error('Repair failed: ' + err.message);
+      process.exitCode = 1;
+    });
+    return;
+  }
+
   if (!hasFlag('--force') && state.generatedDate === iso && state.pagesPublished === true && state.overallStatus !== 'no_today' && fs.existsSync(INDEX_PATH)) {
     console.log('AI Daily Digest already published for ' + iso + '. Use --force to regenerate.');
     return;
@@ -1204,7 +1399,15 @@ function main() {
     }
     return runCodexDigest(items, iso).then(function (digest) {
       var aligned = alignDigestItems(items, digest);
-      return { items: aligned.items, digest: aligned.digest, codexError: '' };
+      return repairDigestQuality(aligned.items, aligned.digest, iso).then(function (repairResult) {
+        return { items: aligned.items, digest: repairResult.digest, codexError: '' };
+      }).catch(function (repairErr) {
+        return {
+          items: aligned.items,
+          digest: aligned.digest,
+          codexError: 'Codex quality repair failed: ' + repairErr.message
+        };
+      });
     }).catch(function (err) {
       return { items: items, digest: fallbackDigest(items), codexError: err.message };
     });
