@@ -6,7 +6,7 @@
 <title>AI 日报 - 2026年6月5日</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Noto+Sans+SC:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root{
   --ink:#29231c;--ink2:#4a4035;--ink3:#7e7468;--ink4:#aaa195;
@@ -19,6 +19,7 @@
   --purple:#766a9c;--purple-tint:rgba(118,106,156,.10);
   --sel:#fff5d8;--sel-bdr:#c99b45;--insight:#f2eadc;--insight-bdr:#dccfb9;
   --font:'Noto Sans SC','PingFang SC',sans-serif;
+  --warm:'Noto Serif SC','Songti SC','STSong',serif;
   --display:'Playfair Display',Georgia,serif;
   --mono:'Space Mono','Courier New',monospace;
 }
@@ -35,7 +36,7 @@ body::before{left:calc(50% - 510px)}body::after{right:calc(50% - 510px)}
 .mast-top-col:last-child{text-align:right}
 .mast-name{font-family:var(--display);font-size:86px;font-weight:900;line-height:.95;color:var(--ink);margin-bottom:.45rem}
 .mast-name span{font-style:italic;color:var(--red)}
-.mast-tagline{font-family:var(--display);font-size:12px;font-style:italic;color:var(--ink3);letter-spacing:0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);padding:.48rem 0;margin:.55rem auto .8rem;max-width:760px}
+.mast-tagline{font-family:var(--warm);font-size:12px;font-weight:500;font-style:normal;color:var(--ink3);letter-spacing:0;border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);padding:.48rem 0;margin:.55rem auto .8rem;max-width:760px}
 .mast-pills{display:flex;align-items:center;justify-content:center;gap:.42rem;flex-wrap:wrap;padding-bottom:1.1rem}
 .source-label,.src-pill{font-family:var(--mono);font-size:8.5px}
 .source-label{color:var(--ink4);letter-spacing:0;text-transform:uppercase;margin-right:.2rem}
@@ -113,6 +114,7 @@ body::before{left:calc(50% - 510px)}body::after{right:calc(50% - 510px)}
 @media(max-width:580px){
   body::before,body::after{display:none}
   .page{padding:0 .95rem 5rem}.mast-top{grid-template-columns:1fr 1fr}.mast-top-col:nth-child(2){display:none}.mast-name{font-size:42px}
+  .mast-tagline{font-size:min(10px,2.42vw);line-height:1.55;white-space:nowrap;max-width:100%;overflow:hidden;padding:.42rem 0}
   .filterbar{gap:5px}.filter-btn{font-size:10px;padding:0 10px;min-height:32px}
   .card-top{display:block}.badge{display:inline-block;margin:.35rem 0 0}.card-ft{align-items:flex-start;flex-wrap:wrap}.card-orig{margin-left:0;width:100%}
 }
