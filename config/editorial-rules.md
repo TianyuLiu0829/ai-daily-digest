@@ -61,6 +61,20 @@ When duplicate stories appear, prefer:
 4. Curated newsletters such as TLDR AI, The Rundown AI, Ben's Bites.
 5. Community discussion only as a lead, not as the only source.
 
+## Search And Token Discipline
+
+Preserve original source metadata before summarizing. Do not replace source titles, links, timestamps, repo metadata, model cards, papers, or docs with AI-generated summaries before selection.
+
+Use staged selection:
+
+1. Exact and official-source matches first.
+2. Shortlist by practical impact, source reliability, and recency.
+3. Deduplicate repeated stories before sending candidates to Codex.
+4. Pass compact evidence fields into Codex instead of long raw pages.
+5. Stop once the digest has enough high-signal items; do not keep weak items only to look exhaustive.
+
+For GitHub and HelloGitHub items, prefer repository purpose, stars/forks, archived status, license, topics, and recent push/update time. Do not recommend archived repositories or weakly maintained tools unless the item is clearly historical context.
+
 ## Final Judgment
 
 Every included item needs a practical judgment. Use concrete labels such as:

@@ -11,6 +11,8 @@ var INPUT_PATH = path.join(ROOT, '.digest-last-input.json');
 var OUTPUT_PATH = path.join(ROOT, '.digest-last-output.json');
 var REPAIR_OUTPUT_PATH = path.join(ROOT, '.digest-last-repair-output.json');
 var RENDER_PATH = path.join(ROOT, '.digest-last-render.json');
+var SOURCE_CACHE_PATH = path.join(ROOT, '.digest-source-cache.json');
+var AUDIT_PATH = path.join(ROOT, '.digest-last-audit.json');
 var SOURCES_PATH = path.join(ROOT, 'config', 'sources.json');
 var EDITORIAL_RULES_PATH = path.join(ROOT, 'config', 'editorial-rules.md');
 var SCHEMA_PATH = path.join(ROOT, 'codex-output.schema.json');
@@ -26,6 +28,7 @@ var PAGES_URL = process.env.DIGEST_PAGES_URL || 'https://tianyuliu0829.github.io
 var REQUIRED_CATEGORY_IDS = DISPLAY_CATEGORY_IDS;
 var DEFAULT_FALLBACK_DAYS = parseInt(process.env.DIGEST_FALLBACK_DAYS || '7', 10);
 var GENERIC_FALLBACK_INSIGHT = '对轻度 AI 工作流用户：先判断这条新闻是否会影响你正在用的工具、价格、权限或自动化能力。';
+var SOURCE_CACHE_LIMIT = parseInt(process.env.DIGEST_SOURCE_CACHE_LIMIT || '40', 10);
 
 function hasFlag(name) {
   return process.argv.indexOf(name) !== -1;
@@ -276,21 +279,31 @@ function monthsSince(dateText) {
 }
 
 function repoIsRecentlyMaintained(meta) {
-  return meta && meta.updated_at && monthsSince(meta.updated_at) <= 18;
+  return meta && (meta.pushed_at || meta.updated_at) && monthsSince(meta.pushed_at || meta.updated_at) <= 18;
 }
 
 function enrichWithGitHubMeta(item, meta, intro) {
   var repoName = meta.full_name || item.title;
   var description = meta.description || item.summary || '';
-  var maintained = repoIsRecentlyMaintained(meta) ? '仍在维护' : '最近维护信号偏弱';
+  var license = meta.license && meta.license.spdx_id ? meta.license.spdx_id : '未标明';
+  var topics = Array.isArray(meta.topics) && meta.topics.length ? meta.topics.slice(0, 6).join(', ') : '未标明';
+  var maintained = meta.archived ? '项目已归档' : (repoIsRecentlyMaintained(meta) ? '仍在维护' : '最近维护信号偏弱');
   item.title = repoName + (description ? '：' + compactText(description, 80) : '');
   item.summary = compactText((intro ? intro + ' ' : '') +
     '用途：' + (description || '仓库描述有限，需要打开项目页确认。') +
     ' 热度：' + compactNumber(meta.stargazers_count) + ' stars，' + compactNumber(meta.forks_count) + ' forks。' +
-    ' 维护：GitHub 最近更新 ' + dateTimeText(meta.updated_at) + '，' + maintained + '。', 700);
+    ' 维护：最近 push ' + dateTimeText(meta.pushed_at || meta.updated_at) + '，' + maintained + '。' +
+    ' 许可证：' + license + '。主题：' + topics + '。', 700);
   item.link = meta.html_url || item.link;
-  item.published = meta.updated_at || item.published;
+  item.published = meta.pushed_at || meta.updated_at || item.published;
   item.categoryOverride = 'github';
+  item.repoArchived = !!meta.archived;
+  item.repoMaintained = !meta.archived && repoIsRecentlyMaintained(meta);
+  item.repoStars = parseInt(meta.stargazers_count || 0, 10);
+  item.repoForks = parseInt(meta.forks_count || 0, 10);
+  item.repoLicense = license;
+  item.repoTopics = Array.isArray(meta.topics) ? meta.topics.slice(0, 8) : [];
+  item.repoPushedAt = meta.pushed_at || '';
   return item;
 }
 
@@ -511,6 +524,93 @@ function makeItem(source, title, summary, link, date) {
   };
 }
 
+function cloneItem(item) {
+  var out = {};
+  var key;
+  for (key in item) {
+    if (Object.prototype.hasOwnProperty.call(item, key)) out[key] = item[key];
+  }
+  return out;
+}
+
+function cloneCachedSourceItems(source, sourceCache) {
+  var cached = sourceCache && sourceCache[source.id] && Array.isArray(sourceCache[source.id].items) ? sourceCache[source.id] : null;
+  var out = [];
+  var i;
+  var cloned;
+  if (!cached) return out;
+  for (i = 0; i < cached.items.length; i++) {
+    cloned = cloneItem(cached.items[i]);
+    cloned.sourceCacheFallback = true;
+    cloned.sourceCacheDate = cached.updatedAt || '';
+    cloned.sourceId = cloned.sourceId || source.id;
+    cloned.sourceName = cloned.sourceName || source.name;
+    cloned.sourceCore = !!source.core;
+    out.push(cloned);
+  }
+  return out;
+}
+
+function cacheSourceItems(sourceCache, source, items) {
+  if (!items || items.length === 0) return false;
+  sourceCache[source.id] = {
+    updatedAt: nowText(),
+    sourceName: source.name,
+    homepage: source.homepage || '',
+    items: items.slice(0, SOURCE_CACHE_LIMIT).map(function (item) {
+      var cloned = cloneItem(item);
+      delete cloned.sourceCacheFallback;
+      delete cloned.sourceCacheDate;
+      return cloned;
+    })
+  };
+  return true;
+}
+
+function buildEvidenceForItem(item) {
+  var facts = [];
+  var limits = [];
+  facts.push('来源：' + item.sourceName);
+  facts.push('发布时间：' + dateTimeText(item.published));
+  facts.push('栏目线索：' + rawCategory(item));
+  if (item.sourceCore) facts.push('核心源');
+  if (item.repoStars !== undefined) facts.push('GitHub 热度：' + compactNumber(item.repoStars) + ' stars，' + compactNumber(item.repoForks) + ' forks');
+  if (item.repoPushedAt) facts.push('最近 push：' + dateTimeText(item.repoPushedAt));
+  if (item.repoLicense) facts.push('许可证：' + item.repoLicense);
+  if (item.repoTopics && item.repoTopics.length) facts.push('topics：' + item.repoTopics.slice(0, 6).join(', '));
+  if (item.repoArchived) limits.push('GitHub 仓库已 archived，不应作为可直接采用的新工具推荐');
+  if (item.repoMaintained === false) limits.push('维护信号偏弱，需要谨慎');
+  if (item.sourceCacheFallback) limits.push('来源本次未提供可用新内容，使用最近一次成功抓取的候选补位');
+  if (!item.summary) limits.push('原始摘要为空，只能依据标题和来源判断');
+  return {
+    facts: facts,
+    usefulDetails: compactText(item.summary || item.title, 360),
+    limits: limits
+  };
+}
+
+function prepareCodexInputItems(items) {
+  return items.map(function (item) {
+    return {
+      id: item.id,
+      sourceId: item.sourceId,
+      sourceName: item.sourceName,
+      sourceCore: !!item.sourceCore,
+      title: compactText(item.title, 160),
+      summary: compactText(item.summary, rawCategory(item) === 'github' ? 520 : 420),
+      link: item.link,
+      published: item.published || '',
+      categoryOverride: item.categoryOverride || '',
+      categoryHint: rawCategory(item),
+      evidence: buildEvidenceForItem(item)
+    };
+  });
+}
+
+function inputItemsAreCompact(items) {
+  return Array.isArray(items) && items.length > 0 && !!items[0].evidence;
+}
+
 function parseSource(html, source, iso) {
   if (source.parser === 'rss') return parseRss(html, source, iso);
   if (source.parser === 'tldrHtml') return parseTldrHtml(html, source, iso);
@@ -677,6 +777,7 @@ function rankItems(items) {
   for (i = 0; i < items.length; i++) {
     var text = items[i].title + ' ' + items[i].summary;
     if (lowSignalWords.test(text) && !rescueWords.test(text)) continue;
+    if (items[i].repoArchived) continue;
     var score = 0;
     if (items[i].sourceCore) score += 1;
     if (highWords.test(text)) score += 3;
@@ -684,6 +785,8 @@ function rankItems(items) {
     if (/official|blog|docs|changelog|release|model|tool|product|agent|automation|workflow|pricing|privacy|security/i.test(text)) score += 1;
     if (/funding|raises|valuation|stock|shares/i.test(text) && !/product|launch|acquire|acquisition|partnership|integrat/i.test(text)) score -= 1;
     if (rawCategory(items[i]) === 'fund' || rawCategory(items[i]) === 'research' || rawCategory(items[i]) === 'github') score += 1;
+    if (items[i].repoMaintained === false) score -= 2;
+    if (items[i].sourceCacheFallback) score -= 1;
     scored.push({ item: items[i], score: score });
   }
   scored = scored.sort(function (a, b) {
@@ -961,6 +1064,98 @@ function repairDigestQuality(items, digest, iso) {
   });
 }
 
+function auditDigestData(data) {
+  var items = data && Array.isArray(data.items) ? data.items : [];
+  var digest = data && data.digest ? data.digest : { items: [] };
+  var digestItems = Array.isArray(digest.items) ? digest.items : [];
+  var repairTargets = findDigestRepairTargets(items, digest);
+  var categoryCounts = {};
+  var issues = [];
+  var i;
+  var categoryId;
+  var item;
+  var digestItem;
+  for (i = 0; i < DISPLAY_CATEGORY_IDS.length; i++) categoryCounts[DISPLAY_CATEGORY_IDS[i]] = 0;
+  for (i = 0; i < items.length; i++) {
+    categoryId = classifyDigestItem(items[i], digestItems[i] || {});
+    categoryCounts[categoryId] = (categoryCounts[categoryId] || 0) + 1;
+    item = items[i];
+    digestItem = digestItems[i] || {};
+    if (!item.published) {
+      issues.push({ severity: 'warn', type: 'missing_published_time', itemId: item.id, title: digestItem.titleZh || item.title });
+    }
+    if (item.repoArchived) {
+      issues.push({ severity: 'error', type: 'github_archived_repo', itemId: item.id, title: digestItem.titleZh || item.title });
+    } else if (item.repoMaintained === false) {
+      issues.push({ severity: 'warn', type: 'github_weak_maintenance', itemId: item.id, title: digestItem.titleZh || item.title });
+    }
+    if (item.sourceCacheFallback) {
+      issues.push({ severity: 'info', type: 'source_cache_fallback_item', itemId: item.id, title: digestItem.titleZh || item.title });
+    }
+  }
+  if (items.length !== digestItems.length) {
+    issues.push({ severity: 'error', type: 'item_digest_count_mismatch', itemCount: items.length, digestCount: digestItems.length });
+  }
+  for (i = 0; i < repairTargets.length; i++) {
+    issues.push({
+      severity: 'error',
+      type: 'needs_translation_or_insight_repair',
+      itemId: repairTargets[i].currentDigest.itemId,
+      title: repairTargets[i].currentDigest.titleZh || repairTargets[i].raw.title
+    });
+  }
+  for (i = 0; i < REQUIRED_CATEGORY_IDS.length; i++) {
+    categoryId = REQUIRED_CATEGORY_IDS[i];
+    if ((categoryCounts[categoryId] || 0) < MIN_ITEMS_PER_CATEGORY) {
+      issues.push({
+        severity: 'warn',
+        type: 'category_below_target',
+        category: categoryId,
+        count: categoryCounts[categoryId] || 0,
+        target: MIN_ITEMS_PER_CATEGORY
+      });
+    }
+  }
+  if (data && Array.isArray(data.sourceResults)) {
+    for (i = 0; i < data.sourceResults.length; i++) {
+      if (data.sourceResults[i].status === 'fetch_failed' || data.sourceResults[i].status === 'parse_failed') {
+        issues.push({
+          severity: data.sourceResults[i].core ? 'error' : 'warn',
+          type: 'source_failed',
+          sourceId: data.sourceResults[i].id,
+          sourceName: data.sourceResults[i].name,
+          status: data.sourceResults[i].status,
+          usedCache: !!data.sourceResults[i].usedCache
+        });
+      }
+    }
+  }
+  return {
+    date: data ? data.date : '',
+    generatedAt: data ? data.generatedAt : '',
+    overallStatus: data ? data.overallStatus : '',
+    itemCount: items.length,
+    digestCount: digestItems.length,
+    categoryCounts: categoryCounts,
+    sourceCount: data && Array.isArray(data.sourceResults) ? data.sourceResults.length : 0,
+    issueCount: issues.length,
+    errorCount: issues.filter(function (issue) { return issue.severity === 'error'; }).length,
+    warnCount: issues.filter(function (issue) { return issue.severity === 'warn'; }).length,
+    infoCount: issues.filter(function (issue) { return issue.severity === 'info'; }).length,
+    issues: issues
+  };
+}
+
+function printAudit(audit) {
+  console.log('AI Daily Digest audit: ' + (audit.errorCount ? 'needs attention' : 'ok'));
+  console.log('Date: ' + (audit.date || 'unknown') + ', items=' + audit.itemCount + ', issues=' + audit.issueCount + ', errors=' + audit.errorCount + ', warnings=' + audit.warnCount);
+  console.log('Categories: ' + JSON.stringify(audit.categoryCounts));
+  audit.issues.slice(0, 20).forEach(function (issue) {
+    console.log('- [' + issue.severity + '] ' + issue.type + (issue.title ? ': ' + compactText(issue.title, 90) : '') + (issue.sourceName ? ': ' + issue.sourceName : ''));
+  });
+  if (audit.issues.length > 20) console.log('- ... ' + (audit.issues.length - 20) + ' more');
+}
+
 function runCodexDigest(items, iso) {
   if (hasFlag('--no-codex')) {
     return Promise.reject(new Error('Codex disabled by --no-codex'));
@@ -972,7 +1167,7 @@ function runCodexDigest(items, iso) {
     date: iso,
     instruction: '请把这些 AI 新闻生成中文日报条目。面向轻度 AI 工作流用户，避免空泛，输出必须符合 schema。',
     editorialRules: readText(EDITORIAL_RULES_PATH, ''),
-    items: items
+    items: prepareCodexInputItems(items)
   };
   writeJson(INPUT_PATH, input);
   var prompt = [
@@ -1155,6 +1350,7 @@ function renderSources(sources) {
     html.push('<div><strong>' + escapeHtml(sources[i].name) + '</strong>' + (sources[i].core ? '<span class="core-tag">核心源</span>' : '') + '</div>');
     html.push('<span>' + statusLabel(sources[i].status) + (sources[i].count ? ' · ' + sources[i].count + '条' : '') + '</span>');
     if (sources[i].fallbackDate) html.push('<small>使用 ' + escapeHtml(dateZh(sources[i].fallbackDate)) + ' 内容</small>');
+    if (sources[i].usedCache) html.push('<small>本次使用该来源最近一次成功候选补位 · ' + sources[i].cachedCount + '条</small>');
     if (sources[i].error) html.push('<small>' + escapeHtml(compactText(sources[i].error, 160)) + '</small>');
     html.push('</div>');
   }
@@ -1242,6 +1438,25 @@ function main() {
     return;
   }
 
+  if (hasFlag('--audit-last')) {
+    var auditCachedData = readJson(RENDER_PATH, null);
+    var audit;
+    if (!auditCachedData) {
+      console.error('No cached digest render data found.');
+      process.exitCode = 1;
+      return;
+    }
+    audit = auditDigestData(auditCachedData);
+    writeJson(AUDIT_PATH, audit);
+    if (hasFlag('--json')) {
+      console.log(JSON.stringify(audit, null, 2));
+    } else {
+      printAudit(audit);
+    }
+    if (audit.errorCount > 0) process.exitCode = 1;
+    return;
+  }
+
   if (hasFlag('--rerender-last')) {
     var cachedData = readJson(RENDER_PATH, null);
     var cachedInput;
@@ -1252,7 +1467,7 @@ function main() {
       return;
     }
     cachedInput = readJson(INPUT_PATH, null);
-    if (cachedInput && Array.isArray(cachedInput.items) && cachedInput.items.length > cachedData.items.length) {
+    if (cachedInput && Array.isArray(cachedInput.items) && !inputItemsAreCompact(cachedInput.items) && cachedInput.items.length > cachedData.items.length) {
       repaired = alignDigestItems(cachedInput.items, cachedData.digest || fallbackDigest(cachedData.items || []));
       cachedData.items = repaired.items;
       cachedData.digest = repaired.digest;
@@ -1292,7 +1507,7 @@ function main() {
       return;
     }
     repairCachedInput = readJson(INPUT_PATH, null);
-    if (repairCachedInput && Array.isArray(repairCachedInput.items)) {
+    if ((!Array.isArray(repairCachedData.items) || repairCachedData.items.length === 0) && repairCachedInput && Array.isArray(repairCachedInput.items) && !inputItemsAreCompact(repairCachedInput.items)) {
       repairAligned = alignDigestItems(repairCachedInput.items, repairCachedData.digest || fallbackDigest(repairCachedData.items || []));
       repairCachedData.items = repairAligned.items;
       repairCachedData.digest = repairAligned.digest;
@@ -1361,36 +1576,51 @@ function main() {
   }
 
   var sources = readJson(SOURCES_PATH, []);
+  var sourceCache = readJson(SOURCE_CACHE_PATH, {});
+  var sourceCacheDirty = false;
   var sourceResults = [];
   var allItems = [];
   var pending = sources.map(function (source) {
     return fetchWithTimeout(source.url).then(function (html) {
       var parsed = parseSourceWithFallback(html, source, iso);
+      var cachedItems = [];
+      if (parsed.items.length > 0) {
+        sourceCacheDirty = cacheSourceItems(sourceCache, source, parsed.items) || sourceCacheDirty;
+      } else {
+        cachedItems = cloneCachedSourceItems(source, sourceCache);
+      }
       sourceResults.push({
         id: source.id,
         name: source.name,
         core: !!source.core,
         status: parsed.status,
         count: parsed.items.length,
+        cachedCount: cachedItems.length,
+        usedCache: cachedItems.length > 0,
         fallbackDate: parsed.fallbackDate,
         homepage: source.homepage
       });
-      allItems = allItems.concat(parsed.items);
+      allItems = allItems.concat(parsed.items.length > 0 ? parsed.items : cachedItems);
     }).catch(function (err) {
       var parseLike = /not found|usable|RSS item|parse/i.test(err.message);
+      var cachedItems = cloneCachedSourceItems(source, sourceCache);
       sourceResults.push({
         id: source.id,
         name: source.name,
         core: !!source.core,
         status: parseLike ? 'parse_failed' : 'fetch_failed',
         count: 0,
+        cachedCount: cachedItems.length,
+        usedCache: cachedItems.length > 0,
         error: err.message,
         homepage: source.homepage
       });
+      allItems = allItems.concat(cachedItems);
     });
   });
 
   Promise.all(pending).then(function () {
+    if (sourceCacheDirty) writeJson(SOURCE_CACHE_PATH, sourceCache);
     return enrichGitHubItems(dedupe(allItems));
   }).then(function (enrichedItems) {
     var items = rankItems(enrichedItems);

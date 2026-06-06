@@ -3,6 +3,8 @@
 .digest-last-output.json
 .digest-last-repair-output.json
 .digest-last-render.json
+.digest-last-audit.json
+.digest-source-cache.json
 node_modules/
 .DS_Store
 digest.log
