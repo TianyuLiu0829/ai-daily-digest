@@ -50,8 +50,8 @@
   {
     "id": "microsoft-ai",
     "name": "Microsoft AI Blog",
-    "url": "https://blogs.microsoft.com/ai/feed/",
-    "homepage": "https://blogs.microsoft.com/ai/",
+    "url": "https://news.microsoft.com/source/topics/ai/feed/",
+    "homepage": "https://news.microsoft.com/source/topics/ai/",
     "core": false,
     "parser": "rss"
   },
