@@ -17,7 +17,7 @@ var SOURCES_PATH = path.join(ROOT, 'config', 'sources.json');
 var EDITORIAL_RULES_PATH = path.join(ROOT, 'config', 'editorial-rules.md');
 var SCHEMA_PATH = path.join(ROOT, 'codex-output.schema.json');
 var TEMPLATE_PATH = path.join(ROOT, 'templates', 'digest.html');
-var CODEX_BIN = process.env.CODEX_BIN || '/Applications/Codex.app/Contents/Resources/codex';
+var CODEX_BIN = resolveCodexBin();
 var DISPLAY_CATEGORY_IDS = ['news', 'app', 'fund', 'research', 'github'];
 var MIN_ITEMS_PER_CATEGORY = parseInt(process.env.DIGEST_MIN_ITEMS_PER_CATEGORY || '5', 10);
 var DEFAULT_MAX_ITEMS = Math.max(30, MIN_ITEMS_PER_CATEGORY * DISPLAY_CATEGORY_IDS.length);
@@ -29,6 +29,23 @@ var REQUIRED_CATEGORY_IDS = DISPLAY_CATEGORY_IDS;
 var DEFAULT_FALLBACK_DAYS = parseInt(process.env.DIGEST_FALLBACK_DAYS || '7', 10);
 var GENERIC_FALLBACK_INSIGHT = '对轻度 AI 工作流用户：先判断这条新闻是否会影响你正在用的工具、价格、权限或自动化能力。';
 var SOURCE_CACHE_LIMIT = parseInt(process.env.DIGEST_SOURCE_CACHE_LIMIT || '40', 10);
+
+function resolveCodexBin() {
+  var candidates = [
+    process.env.CODEX_BIN || '',
+    '/Applications/ChatGPT.app/Contents/Resources/codex',
+    '/Applications/Codex.app/Contents/Resources/codex',
+    '/Applications/ChatGPT Classic.app/Contents/Resources/codex'
+  ];
+  var i;
+  var found;
+  for (i = 0; i < candidates.length; i++) {
+    if (candidates[i] && fs.existsSync(candidates[i])) return candidates[i];
+  }
+  found = childProcess.spawnSync('/bin/sh', ['-lc', 'command -v codex'], { encoding: 'utf8' });
+  if (!found.error && found.status === 0 && found.stdout.trim()) return found.stdout.trim();
+  return process.env.CODEX_BIN || candidates[1];
+}
 
 function hasFlag(name) {
   return process.argv.indexOf(name) !== -1;
