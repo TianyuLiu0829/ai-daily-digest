@@ -1531,9 +1531,7 @@ function main() {
     }
     repairDigestQuality(repairCachedData.items || [], repairCachedData.digest || fallbackDigest(repairCachedData.items || []), repairCachedData.date || iso).then(function (repairResult) {
       repairCachedData.digest = repairResult.digest;
-      if (repairResult.repairedCount > 0) {
-        repairCachedData.codexError = repairCachedData.codexError || '';
-      }
+      if (findDigestRepairTargets(repairCachedData.items || [], repairCachedData.digest).length === 0) repairCachedData.codexError = '';
       writeJson(RENDER_PATH, repairCachedData);
       fs.writeFileSync(INDEX_PATH, renderHtml(repairCachedData));
       console.log('Repaired cached digest quality: items=' + repairResult.repairedCount);
@@ -1545,6 +1543,7 @@ function main() {
           publishedUrl: repairPublishResult.url || state.publishedUrl || PAGES_URL,
           publishedAt: repairPublishResult.published ? nowText() : state.publishedAt,
           publishStatus: repairPublishResult.reason,
+          codexError: repairCachedData.codexError || null,
           publishError: null
         });
         console.log('Publish check: ' + repairPublishResult.reason);
